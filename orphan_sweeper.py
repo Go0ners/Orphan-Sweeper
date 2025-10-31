@@ -399,7 +399,7 @@ class OrphanSweeper:
         sys.stdout.flush()
         return result
     
-    def delete_file(self, file_path: Path, dry_run: bool = False) -> bool:
+    def delete_file(self, file_path: Path, dry_run: bool = False, force_delete_folders: bool = False) -> bool:
         """Delete file and parent folder if name matches."""
         parent_dir = file_path.parent
         should_delete_parent = parent_dir.name == file_path.stem
@@ -421,13 +421,18 @@ class OrphanSweeper:
                         parent_dir.rmdir()
                         logger.info(f"   ✅ Folder deleted: {parent_dir.name}/")
                     else:
-                        logger.info(f"   ⚠️  Folder not empty, kept: {parent_dir.name}/")
+                        logger.info(f"   ⚠️  Folder not empty: {parent_dir.name}/")
                         logger.info(f"   📋 Remaining files ({len(remaining_files)}):")
                         for f in remaining_files:
                             logger.info(f"      • {f.name} ({f.suffix or 'no extension'})")
                         
                         if not dry_run:
-                            choice = input("\n   ❓ Delete remaining files and folder? (y/N): ").lower().strip()
+                            if force_delete_folders:
+                                logger.info("   ⚡ Auto-deleting folder (--force-delete-folders enabled)")
+                                choice = 'y'
+                            else:
+                                choice = input("\n   ❓ Delete remaining files and folder? (y/N): ").lower().strip()
+                            
                             if choice in ('y', 'yes'):
                                 for f in remaining_files:
                                     try:
@@ -486,6 +491,8 @@ def run() -> None:
                        help='Number of threads for parallel hash (default: auto)')
     parser.add_argument('--auto-delete', action='store_true',
                        help='Automatic deletion without confirmation (DANGEROUS)')
+    parser.add_argument('--force-delete-folders', action='store_true',
+                       help='Automatically delete non-empty folders without asking')
     parser.add_argument('--dry-run', action='store_true',
                        help='Simulation mode: list orphans without deleting')
     parser.add_argument('--clear-cache', action='store_true',
@@ -557,7 +564,7 @@ def run() -> None:
             should_delete, yes_to_all = sweeper.confirm_deletion(orphan, args.auto_delete, args.dry_run)
         
         if should_delete:
-            if sweeper.delete_file(orphan.path, args.dry_run):
+            if sweeper.delete_file(orphan.path, args.dry_run, args.force_delete_folders):
                 deleted_files.append(orphan)
     
     print("\n" + "="*60)

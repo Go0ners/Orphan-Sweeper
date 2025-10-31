@@ -137,6 +137,7 @@ Generic: works with any folder names!
 | `--workers` | Threads for hashing | `auto` (CPU) |
 | `--dry-run` | Simulation without deletion | `False` |
 | `--auto-delete` | No confirmation ⚠️ | `False` |
+| `--force-delete-folders` | Auto-delete non-empty folders | `False` |
 | `--clear-cache` | Clear cache | `False` |
 | `--display-cache` | Display cache statistics | `False` |
 | `-v, --verbose` | Show actions in real-time | `False` |
