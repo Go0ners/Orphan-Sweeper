@@ -56,6 +56,26 @@ python3 orphan_sweeper.py --clear-cache
 Un fichier est **orphelin** si :
 - Il existe dans SOURCE et qu'il n'existe dans AUCUNE destination
 
+### Matching automatique des sous-dossiers
+
+Si source et destinations ont des sous-dossiers communs, le script les compare automatiquement :
+
+```
+Source: /torrents/          Dest: /media/
+  ├── movies/              ├── movies/
+  ├── shows/               ├── shows/
+  ├── 4k/                  └── 4k/
+  └── incomplete/
+
+→ Compare automatiquement :
+  - torrents/movies ↔ media/movies
+  - torrents/shows ↔ media/shows
+  - torrents/4k ↔ media/4k
+  - incomplete/ ignoré (pas dans dest)
+```
+
+Générique : fonctionne avec n'importe quels noms de dossiers !
+
 ### Algorithme
 
 ```
@@ -88,12 +108,18 @@ Un fichier est **orphelin** si :
 
 - 🔍 Scan récursif
 - 🎬 Support multi formats (mkv, mp4, avi, mov, wmv, flv, webm, m4v)
-- 🔐 Hash MD5 avec cache SQLite indexé
+- 🔐 Hash MD5 partiel pour gros fichiers (>100MB : 30MB hashés)
+- 🔗 Matching automatique des sous-dossiers communs
+- 🛡️ Ignore fichiers < 350MB et samples
+- 📁 Suppression auto du dossier parent si nom identique
+- 💾 Cache SQLite avec batch commits
 - ⚡ Multi-threading (auto: CPU threads par défaut)
-- 📊 Barre de progression avec ETA
+- 📊 Barre de progression avec ETA et threads
 - 🔍 Mode dry-run (simulation)
+- 💬 Mode verbose avec queue thread-safe
 - ⚠️ Confirmation manuelle par défaut
 - 🚀 Option 'a' pour tout supprimer (yes to all)
+- ⏸️ Pause validation après détection
 
 ## 📊 Options
 
