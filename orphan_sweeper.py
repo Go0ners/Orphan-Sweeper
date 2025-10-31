@@ -214,16 +214,50 @@ class OrphanSweeper:
         logger.info("🔍 ANALYSE DES FICHIERS")
         logger.info("="*60)
         
-        # Scan source
-        source_files = self._scan_directory(source_dir)
+        # Détecter les sous-dossiers communs entre source et destinations
+        source_subdirs = {d.name for d in source_dir.iterdir() if d.is_dir()}
+        matched_pairs = []
+        
+        for dest_dir in dest_dirs:
+            dest_subdirs = {d.name for d in dest_dir.iterdir() if d.is_dir()}
+            common = source_subdirs & dest_subdirs
+            
+            if common:
+                logger.info(f"\n🔗 Sous-dossiers matchés avec {dest_dir.name}: {', '.join(sorted(common))}")
+                for subdir in common:
+                    matched_pairs.append((source_dir / subdir, dest_dir / subdir))
+        
+        # Si pas de match, comparer directement les répertoires racines
+        if not matched_pairs:
+            logger.info(f"\n⚠️  Aucun sous-dossier commun, comparaison directe")
+            matched_pairs = [(source_dir, dest_dir) for dest_dir in dest_dirs]
+        
+        # Scan source (tous les sous-dossiers matchés)
+        source_files = []
+        for src, _ in matched_pairs:
+            if src == source_dir:
+                # Scan direct si pas de sous-dossiers
+                source_files.extend(self._scan_directory(source_dir))
+                break
+        else:
+            # Scan uniquement les sous-dossiers matchés
+            scanned_sources = set()
+            for src, _ in matched_pairs:
+                if src not in scanned_sources:
+                    source_files.extend(self._scan_directory(src))
+                    scanned_sources.add(src)
+        
         logger.info(f"   Source: {len(source_files)} fichiers")
         
-        # Scan destinations
+        # Scan destinations (uniquement les sous-dossiers matchés)
         dest_files: List[FileInfo] = []
-        for dest_dir in dest_dirs:
-            dest_info = self._scan_directory(dest_dir)
-            dest_files.extend(dest_info)
-            logger.info(f"   Destination: {len(dest_info)} fichiers")
+        scanned_dests = set()
+        for _, dest in matched_pairs:
+            if dest not in scanned_dests:
+                dest_info = self._scan_directory(dest)
+                dest_files.extend(dest_info)
+                logger.info(f"   Destination: {len(dest_info)} fichiers")
+                scanned_dests.add(dest)
         
         logger.info(f"\n📊 Total destinations: {len(dest_files)} fichiers")
         
