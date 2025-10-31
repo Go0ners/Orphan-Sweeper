@@ -100,7 +100,7 @@ Un fichier est **orphelin** si :
 | Option | Description | Défaut |
 |--------|-------------|--------|
 | `-S, --source` | Répertoire source | Requis |
-| `-D, --destination` | Destination (répétable) | Requis |
+| `-D, --dest` | Destination (répétable) | Requis |
 | `--cache` | Fichier cache SQLite | `media_cache.db` |
 | `--workers` | Threads pour hash | `auto` (CPU) |
 | `--dry-run` | Simulation sans suppression | `False` |

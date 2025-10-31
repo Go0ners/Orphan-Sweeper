@@ -329,14 +329,15 @@ def run() -> None:
     parser = ArgumentParser(
         description='Orphan File Sweeper - Supprime les fichiers orphelins sans correspondance',
         formatter_class=RawDescriptionHelpFormatter,
+        allow_abbrev=False,
         epilog="""Exemples:
   %(prog)s -S ~/Downloads -D ~/Films -D ~/Series
-  %(prog)s --source /tmp/videos --destination /media/films --destination /backup"""
+  %(prog)s --source /tmp/videos --dest /media/films --dest /backup"""
     )
     
-    parser.add_argument('-S', '--source', type=Path,
+    parser.add_argument('-S', '--source', type=Path, required=False,
                        help='Répertoire source à analyser')
-    parser.add_argument('-D', '--destination', type=Path, action='append',
+    parser.add_argument('-D', '--dest', type=Path, action='append', required=False,
                        help='Répertoire de destination (peut être répété)')
     parser.add_argument('--cache', type=Path, default=Path('media_cache.db'),
                        help='Fichier cache SQLite (défaut: media_cache.db)')
@@ -365,19 +366,19 @@ def run() -> None:
         sweeper.clear_cache()
         return
     
-    if not args.source or not args.destination:
-        parser.error("Les arguments -S/--source et -D/--destination sont requis (sauf avec --clear-cache)")
+    if not args.source or not args.dest:
+        parser.error("Les arguments -S/--source et -D/--dest sont requis (sauf avec --clear-cache)")
     
     print("\n" + "="*60)
     print("🧹 ORPHAN FILE SWEEPER")
     print("="*60)
     logger.info(f"📂 Source: {args.source}")
-    logger.info(f"🎯 Destinations: {len(args.destination)} répertoire(s)")
-    for dest in args.destination:
+    logger.info(f"🎯 Destinations: {len(args.dest)} répertoire(s)")
+    for dest in args.dest:
         logger.info(f"   • {dest}")
     
     start_time = time()
-    orphans = sweeper.find_orphans(args.source, args.destination)
+    orphans = sweeper.find_orphans(args.source, args.dest)
     scan_duration = time() - start_time
     
     if not orphans:
