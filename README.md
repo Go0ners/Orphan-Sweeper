@@ -86,7 +86,8 @@ Générique : fonctionne avec n'importe quels noms de dossiers !
    └─> Élimine fichiers identiques (taille + mtime)
    └─> Économie : ~90% des calculs hash
 
-3. HASH MD5
+3. HASH MD5 PARTIEL
+   └─> Hash 30MB (10MB début + 10MB milieu + 10MB fin)
    └─> Calcul parallèle (multi-threading)
    └─> Cache SQLite pour éviter recalculs
    └─> Comparaison précise par hash
@@ -108,7 +109,7 @@ Générique : fonctionne avec n'importe quels noms de dossiers !
 
 - 🔍 Scan récursif
 - 🎬 Support multi formats (mkv, mp4, avi, mov, wmv, flv, webm, m4v)
-- 🔐 Hash MD5 partiel pour gros fichiers (>100MB : 30MB hashés)
+- 🔐 Hash MD5 partiel (30MB : début + milieu + fin)
 - 🔗 Matching automatique des sous-dossiers communs
 - 🛡️ Ignore fichiers < 350MB et samples
 - 📁 Suppression auto du dossier parent si nom identique

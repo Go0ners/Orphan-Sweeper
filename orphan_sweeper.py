@@ -114,26 +114,19 @@ class OrphanSweeper:
                 self.log_queue.put(f"🔐 Calcul hash: {file_path.name}")
             
             hasher = hashlib.md5()
+            chunk_size = 10 * 1024 * 1024  # 10 MB
             
-            # Hash partiel pour fichiers > 100 MB
-            if file_size > 100 * 1024 * 1024:
-                chunk_size = 10 * 1024 * 1024  # 10 MB
-                with file_path.open('rb') as f:
-                    # Premiers 10 MB
-                    hasher.update(f.read(chunk_size))
-                    
-                    # Milieu 10 MB
-                    f.seek(file_size // 2 - chunk_size // 2)
-                    hasher.update(f.read(chunk_size))
-                    
-                    # Derniers 10 MB
-                    f.seek(max(0, file_size - chunk_size))
-                    hasher.update(f.read(chunk_size))
-            else:
-                # Hash complet pour petits fichiers
-                with file_path.open('rb') as f:
-                    while chunk := f.read(1048576):  # 1MB buffer
-                        hasher.update(chunk)
+            with file_path.open('rb') as f:
+                # Premiers 10 MB
+                hasher.update(f.read(chunk_size))
+                
+                # Milieu 10 MB
+                f.seek(file_size // 2 - chunk_size // 2)
+                hasher.update(f.read(chunk_size))
+                
+                # Derniers 10 MB
+                f.seek(max(0, file_size - chunk_size))
+                hasher.update(f.read(chunk_size))
             
             file_hash = hasher.hexdigest()
             
