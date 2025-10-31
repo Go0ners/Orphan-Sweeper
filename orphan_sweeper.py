@@ -118,6 +118,14 @@ class OrphanSweeper:
             # Ajouter au batch (écriture thread-safe)
             with self.db_lock:
                 self.pending_commits.append((path_str, stat.st_mtime, stat.st_size, file_hash))
+                # Flush périodique tous les 100 fichiers
+                if len(self.pending_commits) >= 100:
+                    self.conn.executemany(
+                        "INSERT OR REPLACE INTO file_cache (path, mtime, size, hash) VALUES (?, ?, ?, ?)",
+                        self.pending_commits
+                    )
+                    self.conn.commit()
+                    self.pending_commits.clear()
             
             return file_hash
             
