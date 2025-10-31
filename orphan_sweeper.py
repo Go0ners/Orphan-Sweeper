@@ -282,7 +282,7 @@ class OrphanSweeper:
                         result[file_hash] = file_info
                 except Exception as e:
                     if self.verbose:
-                        print(f"⚠️  Erreur hash {file_info.path.name}: {e}")
+                        print(f"\r\033[K⚠️  Erreur hash {file_info.path.name}: {e}")
                 
                 # Afficher progression
                 elapsed = time() - start_time
@@ -298,19 +298,21 @@ class OrphanSweeper:
                 else:
                     eta_str = f"{eta_seconds/3600:.1f}h"
                 
-                # Sauvegarder position curseur, aller en bas, afficher, restaurer
-                progress_line = f"   ⏳ Progression: {completed}/{total} ({percent:.1f}%) | ⚡ {rate:.1f} fichiers/s | ⏱️  ETA: {eta_str}"
-                sys.stdout.write(f"\033[s\033[9999;0H\033[K{progress_line}\033[u")
+                # Afficher progression (efface ligne avant si verbose)
+                if self.verbose:
+                    sys.stdout.write("\r\033[K")
+                sys.stdout.write(f"\r   ⏳ Progression: {completed}/{total} ({percent:.1f}%) | "
+                                f"⚡ {rate:.1f} fichiers/s | ⏱️  ETA: {eta_str}")
                 sys.stdout.flush()
             
             executor.shutdown(wait=True)
         except KeyboardInterrupt:
-            sys.stdout.write("\033[9999;0H\033[K\n")
+            sys.stdout.write("\n")
             sys.stdout.flush()
             executor.shutdown(wait=False, cancel_futures=True)
             raise
         
-        sys.stdout.write("\033[9999;0H\033[K\n")
+        sys.stdout.write("\n")
         sys.stdout.flush()
         return result
     
