@@ -140,37 +140,48 @@ Générique : fonctionne avec n'importe quels noms de dossiers !
 ```
 🧹 ORPHAN FILE SWEEPER
 ============================================================
-📂 Source: test/source
-🎯 Destinations: 2 répertoire(s)
+📂 Source: /mnt/data/torrents
+🎯 Destinations: 1 répertoire(s)
+   • /mnt/data/media
+
+🔗 Sous-dossiers matchés avec media: 4k, movies, shows
 
 🔍 ANALYSE DES FICHIERS
 ============================================================
-   Source: 50 fichiers
-   Destination: 40 fichiers
-   Destination: 30 fichiers
+📁 Scan: /mnt/data/torrents/movies
+   Source: 2194 fichiers
+📁 Scan: /mnt/data/media/movies
+   Destination: 2560 fichiers
 
-📊 Total destinations: 70 fichiers
-⚡ Filtre rapide: 15 candidats orphelins
+📊 Total destinations: 2560 fichiers
+⚡ Filtre rapide: 311 candidats orphelins
 
-🔐 Calcul hash pour 15 candidats (20/16 threads)...
-   ⏳ Progression: 15/15 (100.0%) | ⚡ 85.3 fichiers/s | ⏱️  ETA: 12min
+🔐 Calcul hash pour 311 candidats...
+   ⏳ Progression: 311/311 (100.0%) | ⚡ 589.1 fichiers/s | 💻 16/16 threads | ⏱️  ETA: 0s
 
-⚠️  15 FICHIER(S) ORPHELIN(S) DÉTECTÉ(S)
+🔐 Calcul hash pour 160 destinations...
+   ⏳ Progression: 160/160 (100.0%) | ⚡ 11112.5 fichiers/s | 💻 16/16 threads | ⏱️  ETA: 0s
+
+⏸️  30 orphelin(s) détectés. Appuyez sur Entrée pour continuer...
+
+⚠️  30 FICHIER(S) ORPHELIN(S) DÉTECTÉ(S)
 ============================================================
-💾 Taille totale: 245.00 MB (0.24 GB)
-⏱️  Durée du scan: 0.8s
+💾 Taille totale: 245.00 GB (245.00 GB)
+⏱️  Durée du scan: 12.3s
 
 ────────────────────────────────────────────────────────────
 🗑️  FICHIER ORPHELIN DÉTECTÉ
 ────────────────────────────────────────────────────────────
-📄 Fichier: old_movie.mp4
-📂 Chemin: test/source
-💾 Taille: 16,777,216 bytes (16.00 MB)
-📅 Date: 2025-10-31 11:31:29
+📄 Fichier: Jurassic.World.Rebirth.2025.mkv
+📂 Chemin: /mnt/data/torrents/movies/Jurassic.World.Rebirth.2025
+💾 Taille: 8,589,934,592 bytes (8192.00 MB)
+📅 Date: 2025-01-15 14:23:45
 
 ⚠️  Ce fichier n'existe dans aucune destination.
 
-❓ Supprimer ce fichier? ([O]ui/n/a/q): 
+❓ Supprimer ce fichier? ([O]ui/n/a/q): o
+   ✅ Supprimé: Jurassic.World.Rebirth.2025.mkv
+   ✅ Dossier supprimé: Jurassic.World.Rebirth.2025/
 ```
 
 ## 💡 Options de confirmation
