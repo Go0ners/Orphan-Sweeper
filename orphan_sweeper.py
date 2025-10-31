@@ -243,14 +243,14 @@ class OrphanSweeper:
         
         # Filtre 2: hash candidats
         max_cpu = os.cpu_count() or 1
-        logger.info(f"\n🔐 Calcul hash pour {len(candidates)} candidats ({self.max_workers}/{max_cpu} threads)...")
+        print(f"\n🔐 Calcul hash pour {len(candidates)} candidats ({self.max_workers}/{max_cpu} threads)...")
         candidate_hashes = self._compute_hashes_parallel(candidates)
         
         # Optimisation: ne hasher que les destinations avec taille correspondante
         candidate_sizes = {f.size for f in candidates}
         dest_to_hash = [f for f in dest_files if f.size in candidate_sizes]
         
-        logger.info(f"\n🔐 Calcul hash pour {len(dest_to_hash)} destinations ({self.max_workers}/{max_cpu} threads)...")
+        print(f"\n🔐 Calcul hash pour {len(dest_to_hash)} destinations ({self.max_workers}/{max_cpu} threads)...")
         dest_hash_map = self._compute_hashes_parallel(dest_to_hash)
         dest_hashes = set(dest_hash_map.keys())
         
