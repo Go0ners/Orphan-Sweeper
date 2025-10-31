@@ -394,7 +394,7 @@ class OrphanSweeper:
                         sys.stdout.write(f"\r{progress_line}")
                 else:
                     if not self.silent:
-                    sys.stdout.write(f"\r{progress_line}")
+                        sys.stdout.write(f"\r{progress_line}")
                 
                 if not self.silent:
                     sys.stdout.flush()
