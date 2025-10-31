@@ -327,13 +327,7 @@ class OrphanSweeper:
                     if self.verbose:
                         self.log_queue.put(f"⚠️  Erreur hash {file_info.path.name}: {e}")
                 
-                # Afficher logs en attente
-                if self.verbose:
-                    while not self.log_queue.empty():
-                        log_msg = self.log_queue.get()
-                        print(log_msg)
-                
-                # Afficher progression
+                # Calculer progression
                 elapsed = time() - start_time
                 percent = (completed / total) * 100
                 rate = completed / elapsed if elapsed > 0 else 0
@@ -349,12 +343,28 @@ class OrphanSweeper:
                 
                 progress_line = f"   ⏳ Progression: {completed}/{total} ({percent:.1f}%) | ⚡ {rate:.1f} fichiers/s | ⏱️  ETA: {eta_str}"
                 
-                # Afficher progression
-                if self.verbose and term_height > 0:
-                    # Sauvegarder position, aller en bas, afficher, restaurer
-                    sys.stdout.write(f"\033[s\033[{term_height};0H\033[K{progress_line}\033[u")
+                # Afficher logs puis progression
+                if self.verbose:
+                    # Vider tous les logs d'abord
+                    logs = []
+                    while not self.log_queue.empty():
+                        logs.append(self.log_queue.get())
+                    
+                    if logs:
+                        # Effacer ligne de progression, afficher logs, réafficher progression
+                        if term_height > 0:
+                            sys.stdout.write(f"\033[{term_height};0H\033[K")
+                        for log_msg in logs:
+                            print(log_msg)
+                    
+                    # Afficher progression en bas
+                    if term_height > 0:
+                        sys.stdout.write(f"\033[s\033[{term_height};0H\033[K{progress_line}\033[u")
+                    else:
+                        sys.stdout.write(f"\r{progress_line}")
                 else:
                     sys.stdout.write(f"\r{progress_line}")
+                
                 sys.stdout.flush()
             
             executor.shutdown(wait=True)
