@@ -497,7 +497,6 @@ def main() -> None:
         print("\n\n" + "="*60)
         logger.info("⚠️  OPERATION CANCELLED BY USER")
         print("="*60)
-        logger.info("👋 No changes made")
         os._exit(1)
 
 
