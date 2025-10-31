@@ -15,7 +15,10 @@ from pathlib import Path
 from threading import Lock
 from time import time
 from typing import List, Optional, Set
+from queue import Queue
 import os
+import shutil
+import select
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -54,6 +57,7 @@ class OrphanSweeper:
         self.db_lock = Lock()
         self.pending_commits: list[tuple] = []
         self.verbose = verbose
+        self.log_queue: Queue = Queue()
     
     def __del__(self) -> None:
         """Ferme la connexion SQLite."""
@@ -83,7 +87,7 @@ class OrphanSweeper:
         logger.info(f"\n✅ Cache vidé: {self.cache_file}")
     
     def _get_file_hash(self, file_path: Path) -> Optional[str]:
-        """Calcule le hash MD5 d'un fichier avec cache."""
+        """Calcule le hash MD5 d'un fichier avec cache (hash partiel pour gros fichiers)."""
         try:
             stat = file_path.stat()
         except OSError as e:
@@ -91,6 +95,7 @@ class OrphanSweeper:
             return None
         
         path_str = str(file_path)
+        file_size = stat.st_size
         
         # Vérifier cache (lecture thread-safe)
         with self.db_lock:
@@ -101,17 +106,34 @@ class OrphanSweeper:
             row = cursor.fetchone()
             if row:
                 if self.verbose:
-                    logger.info(f"✅ Cache hit: {file_path.name}")
+                    self.log_queue.put(f"✅ Cache hit: {file_path.name}")
                 return row[0]
         
         try:
             if self.verbose:
-                logger.info(f"🔐 Calcul hash: {file_path.name}")
+                self.log_queue.put(f"🔐 Calcul hash: {file_path.name}")
             
             hasher = hashlib.md5()
-            with file_path.open('rb') as f:
-                while chunk := f.read(1048576):  # 1MB buffer
-                    hasher.update(chunk)
+            
+            # Hash partiel pour fichiers > 100 MB
+            if file_size > 100 * 1024 * 1024:
+                chunk_size = 10 * 1024 * 1024  # 10 MB
+                with file_path.open('rb') as f:
+                    # Premiers 10 MB
+                    hasher.update(f.read(chunk_size))
+                    
+                    # Milieu 10 MB
+                    f.seek(file_size // 2 - chunk_size // 2)
+                    hasher.update(f.read(chunk_size))
+                    
+                    # Derniers 10 MB
+                    f.seek(max(0, file_size - chunk_size))
+                    hasher.update(f.read(chunk_size))
+            else:
+                # Hash complet pour petits fichiers
+                with file_path.open('rb') as f:
+                    while chunk := f.read(1048576):  # 1MB buffer
+                        hasher.update(chunk)
             
             file_hash = hasher.hexdigest()
             
@@ -234,6 +256,16 @@ class OrphanSweeper:
             if file_hash not in dest_hashes
         ]
         
+        # Pause pour validation
+        if orphans:
+            print(f"\n⏸️  {len(orphans)} orphelin(s) détecté(s). Appuyez sur Entrée pour continuer (auto dans 10s)...")
+            if sys.stdin.isatty():
+                ready, _, _ = select.select([sys.stdin], [], [], 10)
+                if ready:
+                    sys.stdin.readline()
+            else:
+                time.sleep(10)
+        
         return orphans
     
     def confirm_deletion(self, file_info: FileInfo, auto_delete: bool = False, dry_run: bool = False) -> tuple[bool, bool]:
@@ -277,6 +309,9 @@ class OrphanSweeper:
         start_time = time()
         executor = ThreadPoolExecutor(max_workers=self.max_workers)
         
+        # Obtenir hauteur terminal pour mode verbose
+        term_height = shutil.get_terminal_size().lines if self.verbose else 0
+        
         try:
             futures = {executor.submit(self._get_file_hash, f.path): f for f in files}
             
@@ -290,7 +325,13 @@ class OrphanSweeper:
                         result[file_hash] = file_info
                 except Exception as e:
                     if self.verbose:
-                        print(f"\r\033[K⚠️  Erreur hash {file_info.path.name}: {e}")
+                        self.log_queue.put(f"⚠️  Erreur hash {file_info.path.name}: {e}")
+                
+                # Afficher logs en attente
+                if self.verbose:
+                    while not self.log_queue.empty():
+                        log_msg = self.log_queue.get()
+                        print(log_msg)
                 
                 # Afficher progression
                 elapsed = time() - start_time
@@ -306,21 +347,30 @@ class OrphanSweeper:
                 else:
                     eta_str = f"{eta_seconds/3600:.1f}h"
                 
-                # Afficher progression (efface ligne avant si verbose)
-                if self.verbose:
-                    sys.stdout.write("\r\033[K")
-                sys.stdout.write(f"\r   ⏳ Progression: {completed}/{total} ({percent:.1f}%) | "
-                                f"⚡ {rate:.1f} fichiers/s | ⏱️  ETA: {eta_str}")
+                progress_line = f"   ⏳ Progression: {completed}/{total} ({percent:.1f}%) | ⚡ {rate:.1f} fichiers/s | ⏱️  ETA: {eta_str}"
+                
+                # Afficher progression
+                if self.verbose and term_height > 0:
+                    # Sauvegarder position, aller en bas, afficher, restaurer
+                    sys.stdout.write(f"\033[s\033[{term_height};0H\033[K{progress_line}\033[u")
+                else:
+                    sys.stdout.write(f"\r{progress_line}")
                 sys.stdout.flush()
             
             executor.shutdown(wait=True)
         except KeyboardInterrupt:
-            sys.stdout.write("\n")
+            if self.verbose and term_height > 0:
+                sys.stdout.write(f"\033[{term_height};0H\033[K\n")
+            else:
+                sys.stdout.write("\n")
             sys.stdout.flush()
             executor.shutdown(wait=False, cancel_futures=True)
             raise
         
-        sys.stdout.write("\n")
+        if self.verbose and term_height > 0:
+            sys.stdout.write(f"\033[{term_height};0H\033[K\n")
+        else:
+            sys.stdout.write("\n")
         sys.stdout.flush()
         return result
     
