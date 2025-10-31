@@ -2,6 +2,8 @@
 
 Detects and deletes orphan video files from the source directory that have no match in destination directories.
 
+**Latest update:** Code cleanup - removed ~60 lines of redundant code while preserving all functionality.
+
 ## ⚠️ Warning
 
 **THIS TOOL PERMANENTLY DELETES FILES**
