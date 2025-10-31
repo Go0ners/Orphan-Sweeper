@@ -416,11 +416,35 @@ class OrphanSweeper:
             
             if should_delete_parent:
                 try:
-                    if not any(parent_dir.iterdir()):
+                    remaining_files = list(parent_dir.iterdir())
+                    if not remaining_files:
                         parent_dir.rmdir()
                         logger.info(f"   ✅ Folder deleted: {parent_dir.name}/")
                     else:
                         logger.info(f"   ⚠️  Folder not empty, kept: {parent_dir.name}/")
+                        logger.info(f"   📋 Remaining files ({len(remaining_files)}):")
+                        for f in remaining_files:
+                            logger.info(f"      • {f.name} ({f.suffix or 'no extension'})")
+                        
+                        if not dry_run:
+                            choice = input("\n   ❓ Delete remaining files and folder? (y/N): ").lower().strip()
+                            if choice in ('y', 'yes'):
+                                for f in remaining_files:
+                                    try:
+                                        if f.is_file():
+                                            f.unlink()
+                                            logger.info(f"      ✅ Deleted: {f.name}")
+                                        elif f.is_dir():
+                                            shutil.rmtree(f)
+                                            logger.info(f"      ✅ Deleted folder: {f.name}/")
+                                    except OSError:
+                                        logger.info(f"      ❌ Failed to delete: {f.name}")
+                                
+                                try:
+                                    parent_dir.rmdir()
+                                    logger.info(f"   ✅ Folder deleted: {parent_dir.name}/")
+                                except OSError:
+                                    logger.info(f"   ❌ Failed to delete folder: {parent_dir.name}/")
                 except OSError:
                     pass
             
