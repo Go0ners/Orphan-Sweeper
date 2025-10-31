@@ -44,13 +44,14 @@ class OrphanSweeper:
         '.flv', '.webm', '.m4v'
     }
     
-    def __init__(self, cache_file: Path = Path("media_cache.db"), max_workers: int = 4, verbose: bool = False) -> None:
+    def __init__(self, cache_file: Path = Path("media_cache.db"), max_workers: int = 4, verbose: bool = False, silent: bool = False) -> None:
         self.cache_file = cache_file
         self.conn = self._init_db()
         self.max_workers = max_workers
         self.db_lock = Lock()
         self.pending_commits: list[tuple] = []
         self.verbose = verbose
+        self.silent = silent
         self.log_queue: Queue = Queue()
     
     def __del__(self) -> None:
@@ -174,10 +175,12 @@ class OrphanSweeper:
     def _scan_directory(self, directory: Path) -> List[FileInfo]:
         """Scan directory and return video file info."""
         if not directory.exists():
-            logger.error(f"❌ Directory does not exist: {directory}")
+            if not self.silent:
+                logger.error(f"❌ Directory does not exist: {directory}")
             return []
         
-        logger.info(f"📁 Scan: {directory}")
+        if not self.silent:
+            logger.info(f"📁 Scan: {directory}")
         files_info: List[FileInfo] = []
         
         for file_path in directory.rglob("*"):
@@ -207,9 +210,10 @@ class OrphanSweeper:
     
     def find_orphans(self, source_dir: Path, dest_dirs: List[Path]) -> List[FileInfo]:
         """Find orphan files in source directory."""
-        logger.info("\n" + "="*60)
-        logger.info("🔍 FILE ANALYSIS")
-        logger.info("="*60)
+        if not self.silent:
+            logger.info("\n" + "="*60)
+            logger.info("🔍 FILE ANALYSIS")
+            logger.info("="*60)
         
         # Detect common subdirectories between source and destinations
         source_subdirs = {d.name for d in source_dir.iterdir() if d.is_dir()}
@@ -220,13 +224,15 @@ class OrphanSweeper:
             common = source_subdirs & dest_subdirs
             
             if common:
-                logger.info(f"\n🔗 Matched subdirs with {dest_dir.name}: {', '.join(sorted(common))}")
+                if not self.silent:
+                    logger.info(f"\n🔗 Matched subdirs with {dest_dir.name}: {', '.join(sorted(common))}")
                 for subdir in common:
                     matched_pairs.append((source_dir / subdir, dest_dir / subdir))
         
         # If no match, compare root directories directly
         if not matched_pairs:
-            logger.info("\n⚠️  No common subdirs, direct comparison")
+            if not self.silent:
+                logger.info("\n⚠️  No common subdirs, direct comparison")
             matched_pairs = [(source_dir, dest_dir) for dest_dir in dest_dirs]
         
         # Scan source (all matched subdirectories)
@@ -242,7 +248,8 @@ class OrphanSweeper:
                     source_files.extend(self._scan_directory(src))
                     scanned_sources.add(src)
         
-        logger.info(f"   Source: {len(source_files)} files")
+        if not self.silent:
+            logger.info(f"   Source: {len(source_files)} files")
         
         dest_files: List[FileInfo] = []
         scanned_dests = set()
@@ -250,10 +257,12 @@ class OrphanSweeper:
             if dest not in scanned_dests:
                 dest_info = self._scan_directory(dest)
                 dest_files.extend(dest_info)
-                logger.info(f"   Destination: {len(dest_info)} files")
+                if not self.silent:
+                    logger.info(f"   Destination: {len(dest_info)} files")
                 scanned_dests.add(dest)
         
-        logger.info(f"\n📊 Total destinations: {len(dest_files)} files")
+        if not self.silent:
+            logger.info(f"\n📊 Total destinations: {len(dest_files)} files")
         
         dest_metadata = {(f.size, f.mtime) for f in dest_files}
         candidates = [
@@ -261,18 +270,21 @@ class OrphanSweeper:
             if (f.size, f.mtime) not in dest_metadata
         ]
         
-        logger.info(f"⚡ Fast filter: {len(candidates)} orphan candidates")
+        if not self.silent:
+            logger.info(f"⚡ Fast filter: {len(candidates)} orphan candidates")
         
         if not candidates:
             return []
         
-        print(f"\n🔐 Calculating hash for {len(candidates)} candidates...")
+        if not self.silent:
+            print(f"\n🔐 Calculating hash for {len(candidates)} candidates...")
         candidate_hashes = self._compute_hashes_parallel(candidates)
         
         candidate_sizes = {f.size for f in candidates}
         dest_to_hash = [f for f in dest_files if f.size in candidate_sizes]
         
-        print(f"\n🔐 Calculating hash for {len(dest_to_hash)} destinations...")
+        if not self.silent:
+            print(f"\n🔐 Calculating hash for {len(dest_to_hash)} destinations...")
         dest_hash_map = self._compute_hashes_parallel(dest_to_hash)
         dest_hashes = set(dest_hash_map.keys())
         
@@ -283,7 +295,7 @@ class OrphanSweeper:
             if file_hash not in dest_hashes
         ]
         
-        if orphans:
+        if orphans and not self.silent:
             print(f"\n⏸️  {len(orphans)} orphan(s) detected. Press Enter to continue (auto in 10s)...")
             if sys.stdin.isatty():
                 ready, _, _ = select.select([sys.stdin], [], [], 10)
@@ -294,23 +306,26 @@ class OrphanSweeper:
         
         return orphans
     
-    def confirm_deletion(self, file_info: FileInfo, auto_delete: bool = False, dry_run: bool = False) -> tuple[bool, bool]:
+    def confirm_deletion(self, file_info: FileInfo, auto_delete: bool = False, dry_run: bool = False, silent: bool = False) -> tuple[bool, bool]:
         """Ask confirmation to delete a file. Returns (delete, yes_to_all)."""
-        print(f"\n{'─'*60}")
-        print("🗑️  ORPHAN FILE DETECTED")
-        print(f"{'─'*60}")
-        print(f"📄 File: {file_info.path.name}")
-        print(f"📂 Path: {file_info.path.parent}")
-        print(f"💾 Size: {file_info.size:,} bytes ({file_info.size / (1024**2):.2f} MB)")
-        print(f"📅 Date: {file_info.mtime_str}")
-        print("\n⚠️  This file does not exist in any destination.")
+        if not silent:
+            print(f"\n{'─'*60}")
+            print("🗑️  ORPHAN FILE DETECTED")
+            print(f"{'─'*60}")
+            print(f"📄 File: {file_info.path.name}")
+            print(f"📂 Path: {file_info.path.parent}")
+            print(f"💾 Size: {file_info.size:,} bytes ({file_info.size / (1024**2):.2f} MB)")
+            print(f"📅 Date: {file_info.mtime_str}")
+            print("\n⚠️  This file does not exist in any destination.")
         
         if dry_run:
-            print("\n🔍 [DRY-RUN] Would be deleted")
+            if not silent:
+                print("\n🔍 [DRY-RUN] Would be deleted")
             return (True, False)
         
         if auto_delete:
-            print("\n⚡ Automatic deletion enabled")
+            if not silent:
+                print("\n⚡ Automatic deletion enabled")
             return (True, False)
         
         while True:
@@ -378,9 +393,11 @@ class OrphanSweeper:
                     else:
                         sys.stdout.write(f"\r{progress_line}")
                 else:
+                    if not self.silent:
                     sys.stdout.write(f"\r{progress_line}")
                 
-                sys.stdout.flush()
+                if not self.silent:
+                    sys.stdout.flush()
             
             executor.shutdown(wait=True)
         except KeyboardInterrupt:
@@ -399,36 +416,41 @@ class OrphanSweeper:
         sys.stdout.flush()
         return result
     
-    def delete_file(self, file_path: Path, dry_run: bool = False, force_delete_folders: bool = False) -> bool:
+    def delete_file(self, file_path: Path, dry_run: bool = False, force_delete_folders: bool = False, silent: bool = False) -> bool:
         """Delete file and parent folder if name matches."""
         parent_dir = file_path.parent
         should_delete_parent = parent_dir.name == file_path.stem
         
         if dry_run:
-            logger.info(f"   🔍 [DRY-RUN] {file_path.name}")
-            if should_delete_parent:
-                logger.info(f"   🔍 [DRY-RUN] Folder: {parent_dir.name}/")
+            if not silent:
+                logger.info(f"   🔍 [DRY-RUN] {file_path.name}")
+                if should_delete_parent:
+                    logger.info(f"   🔍 [DRY-RUN] Folder: {parent_dir.name}/")
             return True
         
         try:
             file_path.unlink()
-            logger.info(f"   ✅ Deleted: {file_path.name}")
+            if not silent:
+                logger.info(f"   ✅ Deleted: {file_path.name}")
             
             if should_delete_parent:
                 try:
                     remaining_files = list(parent_dir.iterdir())
                     if not remaining_files:
                         parent_dir.rmdir()
-                        logger.info(f"   ✅ Folder deleted: {parent_dir.name}/")
+                        if not silent:
+                            logger.info(f"   ✅ Folder deleted: {parent_dir.name}/")
                     else:
-                        logger.info(f"   ⚠️  Folder not empty: {parent_dir.name}/")
-                        logger.info(f"   📋 Remaining files ({len(remaining_files)}):")
-                        for f in remaining_files:
-                            logger.info(f"      • {f.name} ({f.suffix or 'no extension'})")
+                        if not silent:
+                            logger.info(f"   ⚠️  Folder not empty: {parent_dir.name}/")
+                            logger.info(f"   📋 Remaining files ({len(remaining_files)}):")
+                            for f in remaining_files:
+                                logger.info(f"      • {f.name} ({f.suffix or 'no extension'})")
                         
                         if not dry_run:
                             if force_delete_folders:
-                                logger.info("   ⚡ Auto-deleting folder (--force-delete-folders enabled)")
+                                if not silent:
+                                    logger.info("   ⚡ Auto-deleting folder (--force-delete-folders enabled)")
                                 choice = 'y'
                             else:
                                 choice = input("\n   ❓ Delete remaining files and folder? (y/N): ").lower().strip()
@@ -438,18 +460,23 @@ class OrphanSweeper:
                                     try:
                                         if f.is_file():
                                             f.unlink()
-                                            logger.info(f"      ✅ Deleted: {f.name}")
+                                            if not silent:
+                                                logger.info(f"      ✅ Deleted: {f.name}")
                                         elif f.is_dir():
                                             shutil.rmtree(f)
-                                            logger.info(f"      ✅ Deleted folder: {f.name}/")
+                                            if not silent:
+                                                logger.info(f"      ✅ Deleted folder: {f.name}/")
                                     except OSError:
-                                        logger.info(f"      ❌ Failed to delete: {f.name}")
+                                        if not silent:
+                                            logger.info(f"      ❌ Failed to delete: {f.name}")
                                 
                                 try:
                                     parent_dir.rmdir()
-                                    logger.info(f"   ✅ Folder deleted: {parent_dir.name}/")
+                                    if not silent:
+                                        logger.info(f"   ✅ Folder deleted: {parent_dir.name}/")
                                 except OSError:
-                                    logger.info(f"   ❌ Failed to delete folder: {parent_dir.name}/")
+                                    if not silent:
+                                        logger.info(f"   ❌ Failed to delete folder: {parent_dir.name}/")
                 except OSError:
                     pass
             
@@ -501,6 +528,8 @@ def run() -> None:
                        help='Display cache statistics and quit')
     parser.add_argument('-v', '--verbose', action='store_true',
                        help='Verbose mode: show actions in real-time')
+    parser.add_argument('-s', '--silent', action='store_true',
+                       help='Silent mode: minimal output')
     
     if len(sys.argv) == 1:
         parser.print_help()
@@ -510,7 +539,7 @@ def run() -> None:
     
     args.workers = args.workers or os.cpu_count() or 4
     
-    sweeper = OrphanSweeper(args.cache, args.workers, args.verbose)
+    sweeper = OrphanSweeper(args.cache, args.workers, args.verbose, args.silent)
     
     if args.clear_cache:
         sweeper.clear_cache()
@@ -528,32 +557,35 @@ def run() -> None:
             logger.error(f"❌ Source and destination identical: {args.source}")
             sys.exit(1)
     
-    print("\n" + "="*60)
-    print("🧹 ORPHAN FILE SWEEPER")
-    print("="*60)
-    logger.info(f"📂 Source: {args.source}")
-    logger.info(f"🎯 Destinations: {len(args.dest)} directory(ies)")
-    for dest in args.dest:
-        logger.info(f"   • {dest}")
+    if not args.silent:
+        print("\n" + "="*60)
+        print("🧹 ORPHAN FILE SWEEPER")
+        print("="*60)
+        logger.info(f"📂 Source: {args.source}")
+        logger.info(f"🎯 Destinations: {len(args.dest)} directory(ies)")
+        for dest in args.dest:
+            logger.info(f"   • {dest}")
     
     start_time = time()
     orphans = sweeper.find_orphans(args.source, args.dest)
     scan_duration = time() - start_time
     
     if not orphans:
-        print("\n" + "="*60)
-        logger.info("✅ NO ORPHAN FILE DETECTED")
-        print("="*60)
-        logger.info(f"🎉 All source files have a match!")
-        logger.info(f"⏱️  Scan duration: {scan_duration:.1f}s")
+        if not args.silent:
+            print("\n" + "="*60)
+            logger.info("✅ NO ORPHAN FILE DETECTED")
+            print("="*60)
+            logger.info(f"🎉 All source files have a match!")
+            logger.info(f"⏱️  Scan duration: {scan_duration:.1f}s")
         return
     
-    print("\n" + "="*60)
-    logger.info(f"⚠️  {len(orphans)} ORPHAN FILE(S) DETECTED")
-    print("="*60)
-    total_size = sum(o.size for o in orphans)
-    logger.info(f"💾 Total size: {total_size / (1024**2):.2f} MB ({total_size / (1024**3):.2f} GB)")
-    logger.info(f"⏱️  Scan duration: {scan_duration:.1f}s")
+    if not args.silent:
+        print("\n" + "="*60)
+        logger.info(f"⚠️  {len(orphans)} ORPHAN FILE(S) DETECTED")
+        print("="*60)
+        total_size = sum(o.size for o in orphans)
+        logger.info(f"💾 Total size: {total_size / (1024**2):.2f} MB ({total_size / (1024**3):.2f} GB)")
+        logger.info(f"⏱️  Scan duration: {scan_duration:.1f}s")
     
     deleted_files: list[FileInfo] = []
     yes_to_all = False
@@ -561,26 +593,27 @@ def run() -> None:
         if yes_to_all:
             should_delete = True
         else:
-            should_delete, yes_to_all = sweeper.confirm_deletion(orphan, args.auto_delete, args.dry_run)
+            should_delete, yes_to_all = sweeper.confirm_deletion(orphan, args.auto_delete, args.dry_run, args.silent)
         
         if should_delete:
-            if sweeper.delete_file(orphan.path, args.dry_run, args.force_delete_folders):
+            if sweeper.delete_file(orphan.path, args.dry_run, args.force_delete_folders, args.silent):
                 deleted_files.append(orphan)
     
-    print("\n" + "="*60)
-    logger.info("📋 SUMMARY")
-    print("="*60)
-    logger.info(f"📊 Orphan files detected: {len(orphans)}")
-    if args.dry_run:
-        logger.info(f"🔍 [DRY-RUN] Files that would be deleted: {len(deleted_files)}")
-    else:
-        logger.info(f"🗑️  Files deleted: {len(deleted_files)}")
-        logger.info(f"⏭️  Files skipped: {len(orphans) - len(deleted_files)}")
-    
-    deleted_size = sum(f.size for f in deleted_files)
-    logger.info(f"💾 Space freed: {deleted_size / (1024**2):.2f} MB ({deleted_size / (1024**3):.2f} GB)")
-    logger.info(f"⏱️  Total duration: {time() - start_time:.1f}s")
-    print("="*60 + "\n")
+    if not args.silent:
+        print("\n" + "="*60)
+        logger.info("📋 SUMMARY")
+        print("="*60)
+        logger.info(f"📊 Orphan files detected: {len(orphans)}")
+        if args.dry_run:
+            logger.info(f"🔍 [DRY-RUN] Files that would be deleted: {len(deleted_files)}")
+        else:
+            logger.info(f"🗑️  Files deleted: {len(deleted_files)}")
+            logger.info(f"⏭️  Files skipped: {len(orphans) - len(deleted_files)}")
+        
+        deleted_size = sum(f.size for f in deleted_files)
+        logger.info(f"💾 Space freed: {deleted_size / (1024**2):.2f} MB ({deleted_size / (1024**3):.2f} GB)")
+        logger.info(f"⏱️  Total duration: {time() - start_time:.1f}s")
+        print("="*60 + "\n")
 
 
 if __name__ == "__main__":

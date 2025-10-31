@@ -141,6 +141,7 @@ Generic: works with any folder names!
 | `--clear-cache` | Clear cache | `False` |
 | `--display-cache` | Display cache statistics | `False` |
 | `-v, --verbose` | Show actions in real-time | `False` |
+| `-s, --silent` | Minimal output | `False` |
 
 ## 💡 Output Example
 
