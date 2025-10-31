@@ -242,15 +242,14 @@ class OrphanSweeper:
             return []
         
         # Filtre 2: hash candidats
-        max_cpu = os.cpu_count() or 1
-        print(f"\n🔐 Calcul hash pour {len(candidates)} candidats ({self.max_workers}/{max_cpu} threads)...")
+        print(f"\n🔐 Calcul hash pour {len(candidates)} candidats...")
         candidate_hashes = self._compute_hashes_parallel(candidates)
         
         # Optimisation: ne hasher que les destinations avec taille correspondante
         candidate_sizes = {f.size for f in candidates}
         dest_to_hash = [f for f in dest_files if f.size in candidate_sizes]
         
-        print(f"\n🔐 Calcul hash pour {len(dest_to_hash)} destinations ({self.max_workers}/{max_cpu} threads)...")
+        print(f"\n🔐 Calcul hash pour {len(dest_to_hash)} destinations...")
         dest_hash_map = self._compute_hashes_parallel(dest_to_hash)
         dest_hashes = set(dest_hash_map.keys())
         
@@ -348,7 +347,8 @@ class OrphanSweeper:
                 else:
                     eta_str = f"{eta_seconds/3600:.1f}h"
                 
-                progress_line = f"   ⏳ Progression: {completed}/{total} ({percent:.1f}%) | ⚡ {rate:.1f} fichiers/s | ⏱️  ETA: {eta_str}"
+                max_cpu = os.cpu_count() or 1
+                progress_line = f"   ⏳ Progression: {completed}/{total} ({percent:.1f}%) | ⚡ {rate:.1f} fichiers/s | 💻 {self.max_workers}/{max_cpu} threads | ⏱️  ETA: {eta_str}"
                 
                 # Afficher logs puis progression
                 if self.verbose:
