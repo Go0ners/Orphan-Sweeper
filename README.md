@@ -93,6 +93,7 @@ Un fichier est **orphelin** si :
 - 📊 Barre de progression avec ETA
 - 🔍 Mode dry-run (simulation)
 - ⚠️ Confirmation manuelle par défaut
+- 🚀 Option 'a' pour tout supprimer (yes to all)
 
 ## 📊 Options
 
@@ -141,8 +142,16 @@ Un fichier est **orphelin** si :
 
 ⚠️  Ce fichier n'existe dans aucune destination.
 
-❓ Supprimer ce fichier? ([O]ui/n/q): 
+❓ Supprimer ce fichier? ([O]ui/n/a/q): 
 ```
+
+## 💡 Options de confirmation
+
+Lors de la suppression, vous pouvez répondre :
+- **o** (oui) : Supprimer ce fichier
+- **n** (non) : Ignorer ce fichier
+- **a** (all/tout) : Supprimer tous les fichiers restants sans demander
+- **q** (quitter) : Abandonner l'opération
 
 ## 📄 Licence
 

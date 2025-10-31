@@ -218,8 +218,8 @@ class OrphanSweeper:
         
         return orphans
     
-    def confirm_deletion(self, file_info: FileInfo, auto_delete: bool = False, dry_run: bool = False) -> bool:
-        """Demande confirmation pour supprimer un fichier."""
+    def confirm_deletion(self, file_info: FileInfo, auto_delete: bool = False, dry_run: bool = False) -> tuple[bool, bool]:
+        """Demande confirmation pour supprimer un fichier. Retourne (supprimer, yes_to_all)."""
         print(f"\n{'─'*60}")
         print(f"🗑️  FICHIER ORPHELIN DÉTECTÉ")
         print(f"{'─'*60}")
@@ -231,22 +231,25 @@ class OrphanSweeper:
         
         if dry_run:
             print("\n🔍 [DRY-RUN] Serait supprimé")
-            return True
+            return (True, False)
         
         if auto_delete:
             print("\n⚡ Suppression automatique activée")
-            return True
+            return (True, False)
         
         while True:
-            choice = input("\n❓ Supprimer ce fichier? ([O]ui/n/q): ").lower().strip()
+            choice = input("\n❓ Supprimer ce fichier? ([O]ui/n/a/q): ").lower().strip()
             if choice in ('', 'o', 'oui'):
-                return True
+                return (True, False)
             elif choice in ('n', 'non'):
-                return False
+                return (False, False)
+            elif choice in ('a', 'all', 'tout'):
+                print("\n⚡ Suppression de tous les fichiers restants")
+                return (True, True)
             elif choice == 'q':
                 print("\n👋 Abandon de l'opération")
                 sys.exit(0)
-            print("⚠️  Réponse invalide. Utilisez: o (oui) / n (non) / q (quitter)")
+            print("⚠️  Réponse invalide. Utilisez: o (oui) / n (non) / a (tout) / q (quitter)")
     
     def _compute_hashes_parallel(self, files: List[FileInfo]) -> dict[str, FileInfo]:
         """Calcule les hash en parallèle avec progression."""
@@ -379,8 +382,14 @@ def run() -> None:
     logger.info(f"⏱️  Durée du scan: {scan_duration:.1f}s")
     
     deleted_files: list[FileInfo] = []
+    yes_to_all = False
     for orphan in orphans:
-        if sweeper.confirm_deletion(orphan, args.auto_delete, args.dry_run):
+        if yes_to_all:
+            should_delete = True
+        else:
+            should_delete, yes_to_all = sweeper.confirm_deletion(orphan, args.auto_delete, args.dry_run)
+        
+        if should_delete:
             if sweeper.delete_file(orphan.path, args.dry_run):
                 deleted_files.append(orphan)
     
