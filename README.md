@@ -39,8 +39,8 @@ python3 orphan_sweeper.py --source ~/Downloads --dest ~/Films
 # Plusieurs destinations
 python3 orphan_sweeper.py -S ~/Downloads -D ~/Films -D ~/Series
 
-# Optimisation (8 threads)
-python3 orphan_sweeper.py --source /source --dest /dest --workers 8
+# Optimisation (32 threads pour NAS/réseau)
+python3 orphan_sweeper.py --source /source --dest /dest --workers 32
 
 # Suppression automatique (DANGER)
 python3 orphan_sweeper.py -S ~/temp -D ~/archive --auto-delete
@@ -89,7 +89,7 @@ Un fichier est **orphelin** si :
 - 🔍 Scan récursif
 - 🎬 Support multi formats (mkv, mp4, avi, mov, wmv, flv, webm, m4v)
 - 🔐 Hash MD5 avec cache SQLite indexé
-- ⚡ Multi-threading (4 threads par défaut)
+- ⚡ Multi-threading (auto: CPU threads par défaut)
 - 📊 Barre de progression avec ETA
 - 🔍 Mode dry-run (simulation)
 - ⚠️ Confirmation manuelle par défaut
@@ -102,7 +102,7 @@ Un fichier est **orphelin** si :
 | `-S, --source` | Répertoire source | Requis |
 | `-D, --destination` | Destination (répétable) | Requis |
 | `--cache` | Fichier cache SQLite | `media_cache.db` |
-| `--workers` | Threads pour hash | `4` |
+| `--workers` | Threads pour hash | `auto` (CPU) |
 | `--dry-run` | Simulation sans suppression | `False` |
 | `--auto-delete` | Sans confirmation ⚠️ | `False` |
 | `--clear-cache` | Vider le cache | `False` |
@@ -124,7 +124,7 @@ Un fichier est **orphelin** si :
 📊 Total destinations: 70 fichiers
 ⚡ Filtre rapide: 15 candidats orphelins
 
-🔐 Calcul hash pour 15 candidats (4/8 threads)...
+🔐 Calcul hash pour 15 candidats (20/16 threads)...
    ⏳ Progression: 15/15 (100.0%) | ⚡ 85.3 fichiers/s | ⏱️  ETA: 0s
 
 ⚠️  15 FICHIER(S) ORPHELIN(S) DÉTECTÉ(S)
@@ -152,6 +152,34 @@ Lors de la suppression, vous pouvez répondre :
 - **n** (non) : Ignorer ce fichier
 - **a** (all/tout) : Supprimer tous les fichiers restants sans demander
 - **q** (quitter) : Abandonner l'opération
+
+## ⚡ Performances
+
+### Optimisations automatiques
+
+- Buffer 1MB pour lecture fichiers (16x moins d'appels système)
+- Threads auto = nombre de CPU (I/O bound)
+- Cache SQLite avec batch commits
+- Filtre rapide par taille+mtime (~90% fichiers évités)
+
+### Ajustement selon stockage
+
+```bash
+# Disque local SSD/NVMe (défaut optimal)
+python3 orphan_sweeper.py -S /source -D /dest
+
+# NAS/réseau (augmenter threads pour compenser latence)
+python3 orphan_sweeper.py -S /nas/source -D /nas/dest --workers 32
+
+# HDD mécanique lent (réduire threads)
+python3 orphan_sweeper.py -S /source -D /dest --workers 8
+```
+
+### Vitesse attendue
+
+- SSD local : 50-100 fichiers/s
+- NAS gigabit : 5-20 fichiers/s
+- HDD mécanique : 10-30 fichiers/s
 
 ## 📄 Licence
 

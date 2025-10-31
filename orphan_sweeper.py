@@ -104,7 +104,7 @@ class OrphanSweeper:
         try:
             hasher = hashlib.md5()
             with file_path.open('rb') as f:
-                while chunk := f.read(65536):
+                while chunk := f.read(1048576):  # 1MB buffer
                     hasher.update(chunk)
             
             file_hash = hasher.hexdigest()
@@ -283,7 +283,7 @@ class OrphanSweeper:
                 eta = (total - completed) / rate if rate > 0 else 0
                 
                 sys.stdout.write(f"\r   ⏳ Progression: {completed}/{total} ({percent:.1f}%) | "
-                                f"⚡ {rate:.1f} fichiers/s | ⏱️  ETA: {eta:.0f}s")
+                                f"⚡ {rate:.1f} fichiers/s | ⏱️  ETA: {eta:.0f}")
                 sys.stdout.flush()
             
             executor.shutdown(wait=True)
@@ -293,7 +293,7 @@ class OrphanSweeper:
             executor.shutdown(wait=False, cancel_futures=True)
             raise
         
-        sys.stdout.write("\n")
+        sys.stdout.write("s\n")
         sys.stdout.flush()
         return result
     
@@ -340,8 +340,8 @@ def run() -> None:
                        help='Répertoire de destination (peut être répété)')
     parser.add_argument('--cache', type=Path, default=Path('media_cache.db'),
                        help='Fichier cache SQLite (défaut: media_cache.db)')
-    parser.add_argument('--workers', type=int, default=4,
-                       help='Nombre de threads pour calcul hash parallèle (défaut: 4)')
+    parser.add_argument('--workers', type=int, default=None,
+                       help='Nombre de threads pour calcul hash parallèle (défaut: auto)')
     parser.add_argument('--auto-delete', action='store_true',
                        help='Suppression automatique sans confirmation (DANGEREUX)')
     parser.add_argument('--dry-run', action='store_true',
@@ -354,6 +354,10 @@ def run() -> None:
         sys.exit(1)
     
     args = parser.parse_args()
+    
+    # Auto-detect optimal workers: cpu_count pour I/O bound
+    if args.workers is None:
+        args.workers = os.cpu_count() or 4
     
     sweeper = OrphanSweeper(args.cache, args.workers)
     
