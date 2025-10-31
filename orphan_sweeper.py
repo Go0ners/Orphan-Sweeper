@@ -18,7 +18,7 @@ import os
 import shutil
 import select
 
-# Configuration du logging
+# Logging configuration
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ class OrphanSweeper:
         logger.info(f"\n✅ Cache cleared: {self.cache_file}")
     
     def _get_file_hash(self, file_path: Path) -> Optional[str]:
-        """Calculate MD5 hash d'un fichier avec cache (partial hash for large files)."""
+        """Calculate MD5 hash with cache (partial hash for large files)."""
         try:
             stat = file_path.stat()
         except OSError:
@@ -164,7 +164,7 @@ class OrphanSweeper:
                 # Ignore files < 350 MB
                 if stat.st_size < 350 * 1024 * 1024:
                     continue
-                # Ignore files avec 'sample' in name
+                # Ignore files with 'sample' in name
                 if 'sample' in file_path.name.lower():
                     continue
                 
@@ -185,7 +185,7 @@ class OrphanSweeper:
         logger.info("🔍 FILE ANALYSIS")
         logger.info("="*60)
         
-        # Detect common subdirectories entre source et destinations
+        # Detect common subdirectories between source and destinations
         source_subdirs = {d.name for d in source_dir.iterdir() if d.is_dir()}
         matched_pairs = []
         
@@ -198,12 +198,12 @@ class OrphanSweeper:
                 for subdir in common:
                     matched_pairs.append((source_dir / subdir, dest_dir / subdir))
         
-        # If no match, compare directly les répertoires racines
+        # If no match, compare root directories directly
         if not matched_pairs:
             logger.info("\n⚠️  No common subdirs, direct comparison")
             matched_pairs = [(source_dir, dest_dir) for dest_dir in dest_dirs]
         
-        # Scan source (tous les sous-dossiers matchés)
+        # Scan source (all matched subdirectories)
         source_files = []
         for src, _ in matched_pairs:
             if src == source_dir:
@@ -240,13 +240,13 @@ class OrphanSweeper:
         if not candidates:
             return []
         
-        print(f"\n🔐 Calculating hash pour {len(candidates)} candidates...")
+        print(f"\n🔐 Calculating hash for {len(candidates)} candidates...")
         candidate_hashes = self._compute_hashes_parallel(candidates)
         
         candidate_sizes = {f.size for f in candidates}
         dest_to_hash = [f for f in dest_files if f.size in candidate_sizes]
         
-        print(f"\n🔐 Calculating hash pour {len(dest_to_hash)} destinations...")
+        print(f"\n🔐 Calculating hash for {len(dest_to_hash)} destinations...")
         dest_hash_map = self._compute_hashes_parallel(dest_to_hash)
         dest_hashes = set(dest_hash_map.keys())
         
@@ -258,7 +258,7 @@ class OrphanSweeper:
         ]
         
         if orphans:
-            print(f"\n⏸️  {len(orphans)} orphan(s) detected. Press Enter to continue (auto dans 10s)...")
+            print(f"\n⏸️  {len(orphans)} orphan(s) detected. Press Enter to continue (auto in 10s)...")
             if sys.stdin.isatty():
                 ready, _, _ = select.select([sys.stdin], [], [], 10)
                 if ready:
@@ -288,8 +288,8 @@ class OrphanSweeper:
             return (True, False)
         
         while True:
-            choice = input("\n❓ Delete this file? ([O]ui/n/a/q): ").lower().strip()
-            if choice in ('', 'o', 'yes'):
+            choice = input("\n❓ Delete this file? ([Y]es/n/a/q): ").lower().strip()
+            if choice in ('', 'y', 'yes'):
                 return (True, False)
             elif choice in ('n', 'no'):
                 return (False, False)
@@ -299,7 +299,7 @@ class OrphanSweeper:
             elif choice == 'q':
                 print("\n👋 Operation aborted")
                 sys.exit(0)
-            print("⚠️  Invalid answer. Use: o (yes) / n (no) / a (all) / q (quit)")
+            print("⚠️  Invalid answer. Use: y (yes) / n (no) / a (all) / q (quit)")
     
     def _compute_hashes_parallel(self, files: List[FileInfo]) -> dict[str, FileInfo]:
         """Calculate hashes in parallel with progress."""
@@ -394,7 +394,7 @@ class OrphanSweeper:
                         parent_dir.rmdir()
                         logger.info(f"   ✅ Folder deleted: {parent_dir.name}/")
                     else:
-                        logger.info(f"   ⚠️  Dossier non vide, conservé: {parent_dir.name}/")
+                        logger.info(f"   ⚠️  Folder not empty, kept: {parent_dir.name}/")
                 except OSError:
                     pass
             
@@ -439,7 +439,7 @@ def run() -> None:
     parser.add_argument('--dry-run', action='store_true',
                        help='Simulation mode: list orphans without deleting')
     parser.add_argument('--clear-cache', action='store_true',
-                       help='Vider le cache et quit')
+                       help='Clear cache and quit')
     parser.add_argument('-v', '--verbose', action='store_true',
                        help='Verbose mode: show actions in real-time')
     
@@ -479,7 +479,7 @@ def run() -> None:
     
     if not orphans:
         print("\n" + "="*60)
-        logger.info("✅ AUCUN ORPHAN FILE DETECTED")
+        logger.info("✅ NO ORPHAN FILE DETECTED")
         print("="*60)
         logger.info(f"🎉 All source files have a match!")
         logger.info(f"⏱️  Scan duration: {scan_duration:.1f}s")
@@ -507,12 +507,12 @@ def run() -> None:
     print("\n" + "="*60)
     logger.info("📋 SUMMARY")
     print("="*60)
-    logger.info(f"📊 Fichiers orphelins détectés: {len(orphans)}")
+    logger.info(f"📊 Orphan files detected: {len(orphans)}")
     if args.dry_run:
-        logger.info(f"🔍 [DRY-RUN] Fichiers qui seraient supprimés: {len(deleted_files)}")
+        logger.info(f"🔍 [DRY-RUN] Files that would be deleted: {len(deleted_files)}")
     else:
-        logger.info(f"🗑️  Fichiers supprimés: {len(deleted_files)}")
-        logger.info(f"⏭️  Fichiers ignorés: {len(orphans) - len(deleted_files)}")
+        logger.info(f"🗑️  Files deleted: {len(deleted_files)}")
+        logger.info(f"⏭️  Files skipped: {len(orphans) - len(deleted_files)}")
     
     deleted_size = sum(f.size for f in deleted_files)
     logger.info(f"💾 Space freed: {deleted_size / (1024**2):.2f} MB ({deleted_size / (1024**3):.2f} GB)")
