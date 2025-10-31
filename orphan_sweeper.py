@@ -182,6 +182,13 @@ class OrphanSweeper:
             
             try:
                 stat = file_path.stat()
+                # Ignorer fichiers < 350 MB
+                if stat.st_size < 350 * 1024 * 1024:
+                    continue
+                # Ignorer fichiers avec 'sample' dans le nom
+                if 'sample' in file_path.name.lower():
+                    continue
+                
                 files_info.append(FileInfo(
                     path=file_path,
                     size=stat.st_size,
