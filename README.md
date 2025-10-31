@@ -1,64 +1,64 @@
 # 🧹 Orphan File Sweeper
 
- Détecte et supprime les fichiers vidéo orphelins du répertoire source qui n'ont aucune correspondance dans les répertoires de destination.
+Detects and deletes orphan video files from the source directory that have no match in destination directories.
 
-## ⚠️ Avertissement
+## ⚠️ Warning
 
-**CET OUTIL SUPPRIME DÉFINITIVEMENT DES FICHIERS**
+**THIS TOOL PERMANENTLY DELETES FILES**
 
-- ❌ Pas de corbeille - suppression définitive
-- ❌ Pas de récupération possible
-- ✅ **Testez TOUJOURS avec `--dry-run` d'abord**
-- ✅ Sauvegardez vos données importantes
+- ❌ No recycle bin - permanent deletion
+- ❌ No recovery possible
+- ✅ **ALWAYS test with `--dry-run` first**
+- ✅ Backup your important data
 
 ## 🚀 Installation
 
 ```bash
-# Aucune dépendance - Python 3.8+ requis
+# No dependencies - Python 3.8+ required
 python3 --version
 python3 orphan_sweeper.py --help
 ```
 
 ## 📖 Usage
 
-### Workflow recommandé
+### Recommended Workflow
 
 ```bash
-# 1. Test (obligatoire)
-python3 orphan_sweeper.py -S ~/Downloads -D ~/Films --dry-run
+# 1. Test (mandatory)
+python3 orphan_sweeper.py -S ~/Downloads -D ~/Movies --dry-run
 
-# 2. Vérifier la liste des fichiers
+# 2. Review the file list
 
-# 3. Exécution réelle avec confirmation
-python3 orphan_sweeper.py --source ~/Downloads --dest ~/Films
+# 3. Real execution with confirmation
+python3 orphan_sweeper.py --source ~/Downloads --dest ~/Movies
 ```
 
-### Exemples
+### Examples
 
 ```bash
-# Plusieurs destinations
-python3 orphan_sweeper.py -S ~/Downloads -D ~/Films -D ~/Series
+# Multiple destinations
+python3 orphan_sweeper.py -S ~/Downloads -D ~/Movies -D ~/Shows
 
-# Optimisation (32 threads pour NAS/réseau)
+# Optimization (32 threads for NAS/network)
 python3 orphan_sweeper.py --source /source --dest /dest --workers 32
 
-# Suppression automatique (DANGER)
+# Automatic deletion (DANGER)
 python3 orphan_sweeper.py -S ~/temp -D ~/archive --auto-delete
 
-# Vider le cache
+# Clear cache
 python3 orphan_sweeper.py --clear-cache
 ```
 
-## 🔍 Comment ça marche ?
+## 🔍 How does it work?
 
-### Logique
+### Logic
 
-Un fichier est **orphelin** si :
-- Il existe dans SOURCE et qu'il n'existe dans AUCUNE destination
+A file is **orphan** if:
+- It exists in SOURCE and does NOT exist in ANY destination
 
-### Matching automatique des sous-dossiers
+### Automatic subdirectory matching
 
-Si source et destinations ont des sous-dossiers communs, le script les compare automatiquement :
+If source and destinations have common subdirectories, the script automatically compares them:
 
 ```
 Source: /torrents/          Dest: /media/
@@ -67,161 +67,161 @@ Source: /torrents/          Dest: /media/
   ├── 4k/                  └── 4k/
   └── incomplete/
 
-→ Compare automatiquement :
+→ Automatically compares:
   - torrents/movies ↔ media/movies
   - torrents/shows ↔ media/shows
   - torrents/4k ↔ media/4k
-  - incomplete/ ignoré (pas dans dest)
+  - incomplete/ ignored (not in dest)
 ```
 
-Générique : fonctionne avec n'importe quels noms de dossiers !
+Generic: works with any folder names!
 
-### Algorithme
+### Algorithm
 
 ```
 1. SCAN
-   └─> Collecte métadonnées (taille, mtime)
+   └─> Collect metadata (size, mtime)
 
-2. FILTRE RAPIDE
-   └─> Élimine fichiers identiques (taille + mtime)
-   └─> Économie : ~90% des calculs hash
+2. FAST FILTER
+   └─> Eliminate identical files (size + mtime)
+   └─> Savings: ~90% of hash calculations
 
-3. HASH MD5 PARTIEL
-   └─> Hash 30MB (10MB début + 10MB milieu + 10MB fin)
-   └─> Calcul parallèle (multi-threading)
-   └─> Cache SQLite pour éviter recalculs
-   └─> Comparaison précise par hash
+3. PARTIAL MD5 HASH
+   └─> Hash 30MB (10MB start + 10MB middle + 10MB end)
+   └─> Parallel computation (multi-threading)
+   └─> SQLite cache to avoid recalculations
+   └─> Precise comparison by hash
 
-4. DÉTECTION
-   └─> Fichiers source sans correspondance
+4. DETECTION
+   └─> Source files without match
 
-5. SUPPRESSION
-   └─> Confirmation manuelle (sauf --auto-delete)
+5. DELETION
+   └─> Manual confirmation (except --auto-delete)
 ```
 
-### Pourquoi MD5 ?
+### Why MD5?
 
-- ✅ Détecte fichiers identiques même renommés
-- ✅ `film.mp4` = `movie_renamed.mp4` si hash identique
-- ✅ Pas de faux positifs
+- ✅ Detects identical files even if renamed
+- ✅ `movie.mp4` = `movie_renamed.mp4` if hash identical
+- ✅ No false positives
 
-## ✨ Fonctionnalités
+## ✨ Features
 
-- 🔍 Scan récursif
-- 🎬 Support multi formats (mkv, mp4, avi, mov, wmv, flv, webm, m4v)
-- 🔐 Hash MD5 partiel (30MB : début + milieu + fin)
-- 🔗 Matching automatique des sous-dossiers communs
-- 🛡️ Ignore fichiers < 350MB et samples
-- 📁 Suppression auto du dossier parent si nom identique
-- 💾 Cache SQLite avec batch commits
-- ⚡ Multi-threading (auto: CPU threads par défaut)
-- 📊 Barre de progression avec ETA et threads
-- 🔍 Mode dry-run (simulation)
-- 💬 Mode verbose avec queue thread-safe
-- ⚠️ Confirmation manuelle par défaut
-- 🚀 Option 'a' pour tout supprimer (yes to all)
-- ⏸️ Pause validation après détection
+- 🔍 Recursive scan
+- 🎬 Multi-format support (mkv, mp4, avi, mov, wmv, flv, webm, m4v)
+- 🔐 Partial MD5 hash (30MB: start + middle + end)
+- 🔗 Automatic matching of common subdirectories
+- 🛡️ Ignores files < 350MB and samples
+- 📁 Auto-delete parent folder if name matches
+- 💾 SQLite cache with batch commits
+- ⚡ Multi-threading (auto: CPU threads by default)
+- 📊 Progress bar with ETA and threads
+- 🔍 Dry-run mode (simulation)
+- 💬 Verbose mode with thread-safe queue
+- ⚠️ Manual confirmation by default
+- 🚀 Option 'a' to delete all (yes to all)
+- ⏸️ Validation pause after detection
 
 ## 📊 Options
 
-| Option | Description | Défaut |
-|--------|-------------|--------|
-| `-S, --source` | Répertoire source | Requis |
-| `-D, --dest` | Destination (répétable) | Requis |
-| `--cache` | Fichier cache SQLite | `media_cache.db` |
-| `--workers` | Threads pour hash | `auto` (CPU) |
-| `--dry-run` | Simulation sans suppression | `False` |
-| `--auto-delete` | Sans confirmation ⚠️ | `False` |
-| `--clear-cache` | Vider le cache | `False` |
-| `-v, --verbose` | Affiche actions en temps réel | `False` |
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-S, --source` | Source directory | Required |
+| `-D, --dest` | Destination (repeatable) | Required |
+| `--cache` | SQLite cache file | `media_cache.db` |
+| `--workers` | Threads for hashing | `auto` (CPU) |
+| `--dry-run` | Simulation without deletion | `False` |
+| `--auto-delete` | No confirmation ⚠️ | `False` |
+| `--clear-cache` | Clear cache | `False` |
+| `-v, --verbose` | Show actions in real-time | `False` |
 
-## 💡 Exemples de sortie
+## 💡 Output Example
 
 ```
 🧹 ORPHAN FILE SWEEPER
 ============================================================
 📂 Source: /mnt/data/torrents
-🎯 Destinations: 1 répertoire(s)
+🎯 Destinations: 1 directory(ies)
    • /mnt/data/media
 
-🔗 Sous-dossiers matchés avec media: 4k, movies, shows
+🔗 Matched subdirs with media: 4k, movies, shows
 
-🔍 ANALYSE DES FICHIERS
+🔍 FILE ANALYSIS
 ============================================================
 📁 Scan: /mnt/data/torrents/movies
-   Source: 2194 fichiers
+   Source: 2194 files
 📁 Scan: /mnt/data/media/movies
-   Destination: 2560 fichiers
+   Destination: 2560 files
 
-📊 Total destinations: 2560 fichiers
-⚡ Filtre rapide: 311 candidats orphelins
+📊 Total destinations: 2560 files
+⚡ Fast filter: 311 orphan candidates
 
-🔐 Calcul hash pour 311 candidats...
-   ⏳ Progression: 311/311 (100.0%) | ⚡ 589.1 fichiers/s | 💻 16/16 threads | ⏱️  ETA: 0s
+🔐 Calculating hash for 311 candidates...
+   ⏳ Progress: 311/311 (100.0%) | ⚡ 589.1 files/s | 💻 16/16 threads | ⏱️  ETA: 0s
 
-🔐 Calcul hash pour 160 destinations...
-   ⏳ Progression: 160/160 (100.0%) | ⚡ 11112.5 fichiers/s | 💻 16/16 threads | ⏱️  ETA: 0s
+🔐 Calculating hash for 160 destinations...
+   ⏳ Progress: 160/160 (100.0%) | ⚡ 11112.5 files/s | 💻 16/16 threads | ⏱️  ETA: 0s
 
-⏸️  30 orphelin(s) détectés. Appuyez sur Entrée pour continuer...
+⏸️  30 orphan(s) detected. Press Enter to continue...
 
-⚠️  30 FICHIER(S) ORPHELIN(S) DÉTECTÉ(S)
+⚠️  30 ORPHAN FILE(S) DETECTED
 ============================================================
-💾 Taille totale: 245.00 GB (245.00 GB)
-⏱️  Durée du scan: 12.3s
+💾 Total size: 245.00 GB (245.00 GB)
+⏱️  Scan duration: 12.3s
 
 ────────────────────────────────────────────────────────────
-🗑️  FICHIER ORPHELIN DÉTECTÉ
+🗑️  ORPHAN FILE DETECTED
 ────────────────────────────────────────────────────────────
-📄 Fichier: Jurassic.World.Rebirth.2025.mkv
-📂 Chemin: /mnt/data/torrents/movies/Jurassic.World.Rebirth.2025
-💾 Taille: 8,589,934,592 bytes (8192.00 MB)
+📄 File: Jurassic.World.Rebirth.2025.mkv
+📂 Path: /mnt/data/torrents/movies/Jurassic.World.Rebirth.2025
+💾 Size: 8,589,934,592 bytes (8192.00 MB)
 📅 Date: 2025-01-15 14:23:45
 
-⚠️  Ce fichier n'existe dans aucune destination.
+⚠️  This file does not exist in any destination.
 
-❓ Supprimer ce fichier? ([O]ui/n/a/q): o
-   ✅ Supprimé: Jurassic.World.Rebirth.2025.mkv
-   ✅ Dossier supprimé: Jurassic.World.Rebirth.2025/
+❓ Delete this file? ([Y]es/n/a/q): y
+   ✅ Deleted: Jurassic.World.Rebirth.2025.mkv
+   ✅ Folder deleted: Jurassic.World.Rebirth.2025/
 ```
 
-## 💡 Options de confirmation
+## 💡 Confirmation Options
 
-Lors de la suppression, vous pouvez répondre :
-- **o** (oui) : Supprimer ce fichier
-- **n** (non) : Ignorer ce fichier
-- **a** (all/tout) : Supprimer tous les fichiers restants sans demander
-- **q** (quitter) : Abandonner l'opération
+When deleting, you can answer:
+- **y** (yes) : Delete this file
+- **n** (no) : Skip this file
+- **a** (all) : Delete all remaining files without asking
+- **q** (quit) : Abort operation
 
-## ⚡ Performances
+## ⚡ Performance
 
-### Optimisations automatiques
+### Automatic optimizations
 
-- Buffer 1MB pour lecture fichiers (16x moins d'appels système)
-- Threads auto = nombre de CPU (I/O bound)
-- Cache SQLite avec batch commits
-- Filtre rapide par taille+mtime (~90% fichiers évités)
+- 1MB buffer for file reading (16x fewer system calls)
+- Auto threads = number of CPUs (I/O bound)
+- SQLite cache with batch commits
+- Fast filter by size+mtime (~90% files avoided)
 
-### Ajustement selon stockage
+### Storage adjustment
 
 ```bash
-# Disque local SSD/NVMe (défaut optimal)
+# Local SSD/NVMe disk (optimal default)
 python3 orphan_sweeper.py -S /source -D /dest
 
-# NAS/réseau (augmenter threads pour compenser latence)
+# NAS/network (increase threads to compensate latency)
 python3 orphan_sweeper.py -S /nas/source -D /nas/dest --workers 32
 
-# HDD mécanique lent (réduire threads)
+# Slow mechanical HDD (reduce threads)
 python3 orphan_sweeper.py -S /source -D /dest --workers 8
 ```
 
-### Vitesse attendue
+### Expected speed
 
-- SSD local : 50-100 fichiers/s
-- NAS gigabit : 5-20 fichiers/s
-- HDD mécanique : 10-30 fichiers/s
+- Local SSD: 50-100 files/s
+- Gigabit NAS: 5-20 files/s
+- Mechanical HDD: 10-30 files/s
 
-## 📄 Licence
+## 📄 License
 
-Code généré par **Amazon Q Developer** (AWS).
+Code generated by **Amazon Q Developer** (AWS).
 
-**Utilisation à vos risques et périls** - Aucune responsabilité pour pertes de données.
+**Use at your own risk** - No liability for data loss.
