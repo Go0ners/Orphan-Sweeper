@@ -80,6 +80,32 @@ class OrphanSweeper:
         self.conn.commit()
         logger.info(f"\n✅ Cache cleared: {self.cache_file}")
     
+    def display_cache(self) -> None:
+        """Display cache statistics."""
+        cursor = self.conn.execute("SELECT COUNT(*) FROM file_cache")
+        total = cursor.fetchone()[0]
+        
+        cursor = self.conn.execute("SELECT SUM(size) FROM file_cache")
+        total_size = cursor.fetchone()[0] or 0
+        
+        print("\n" + "="*60)
+        print("📊 CACHE STATISTICS")
+        print("="*60)
+        logger.info(f"📁 Cache file: {self.cache_file}")
+        logger.info(f"📊 Total entries: {total:,}")
+        logger.info(f"💾 Total size tracked: {total_size / (1024**3):.2f} GB")
+        
+        if total > 0:
+            cursor = self.conn.execute(
+                "SELECT path, datetime(mtime, 'unixepoch'), size, hash FROM file_cache ORDER BY mtime DESC LIMIT 5"
+            )
+            print("\n📋 Latest 5 entries:")
+            for row in cursor:
+                print(f"  • {row[0]}")
+                print(f"    Date: {row[1]} | Size: {row[2] / (1024**2):.2f} MB | Hash: {row[3][:16]}...")
+        
+        print("="*60 + "\n")
+    
     def _get_file_hash(self, file_path: Path) -> Optional[str]:
         """Calculate MD5 hash with cache (partial hash for large files)."""
         try:
@@ -440,6 +466,8 @@ def run() -> None:
                        help='Simulation mode: list orphans without deleting')
     parser.add_argument('--clear-cache', action='store_true',
                        help='Clear cache and quit')
+    parser.add_argument('--display-cache', action='store_true',
+                       help='Display cache statistics and quit')
     parser.add_argument('-v', '--verbose', action='store_true',
                        help='Verbose mode: show actions in real-time')
     
@@ -455,6 +483,10 @@ def run() -> None:
     
     if args.clear_cache:
         sweeper.clear_cache()
+        return
+    
+    if args.display_cache:
+        sweeper.display_cache()
         return
     
     if not args.source or not args.dest:

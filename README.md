@@ -49,6 +49,9 @@ python3 orphan_sweeper.py -S ~/temp -D ~/archive --auto-delete
 
 # Clear cache
 python3 orphan_sweeper.py --clear-cache
+
+# Display cache statistics
+python3 orphan_sweeper.py --display-cache
 ```
 
 ## 🔍 How does it work?
@@ -135,6 +138,7 @@ Generic: works with any folder names!
 | `--dry-run` | Simulation without deletion | `False` |
 | `--auto-delete` | No confirmation ⚠️ | `False` |
 | `--clear-cache` | Clear cache | `False` |
+| `--display-cache` | Display cache statistics | `False` |
 | `-v, --verbose` | Show actions in real-time | `False` |
 
 ## 💡 Output Example
