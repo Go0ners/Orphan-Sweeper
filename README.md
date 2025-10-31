@@ -106,6 +106,7 @@ Un fichier est **orphelin** si :
 | `--dry-run` | Simulation sans suppression | `False` |
 | `--auto-delete` | Sans confirmation ⚠️ | `False` |
 | `--clear-cache` | Vider le cache | `False` |
+| `-v, --verbose` | Affiche actions en temps réel | `False` |
 
 ## 💡 Exemples de sortie
 
@@ -125,7 +126,7 @@ Un fichier est **orphelin** si :
 ⚡ Filtre rapide: 15 candidats orphelins
 
 🔐 Calcul hash pour 15 candidats (20/16 threads)...
-   ⏳ Progression: 15/15 (100.0%) | ⚡ 85.3 fichiers/s | ⏱️  ETA: 0s
+   ⏳ Progression: 15/15 (100.0%) | ⚡ 85.3 fichiers/s | ⏱️  ETA: 12min
 
 ⚠️  15 FICHIER(S) ORPHELIN(S) DÉTECTÉ(S)
 ============================================================

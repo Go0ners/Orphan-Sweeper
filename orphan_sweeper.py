@@ -47,12 +47,13 @@ class OrphanSweeper:
         '.flv', '.webm', '.m4v'
     }
     
-    def __init__(self, cache_file: Path = Path("media_cache.db"), max_workers: int = 4) -> None:
+    def __init__(self, cache_file: Path = Path("media_cache.db"), max_workers: int = 4, verbose: bool = False) -> None:
         self.cache_file = cache_file
         self.conn = self._init_db()
         self.max_workers = max_workers
         self.db_lock = Lock()
         self.pending_commits: list[tuple] = []
+        self.verbose = verbose
     
     def __del__(self) -> None:
         """Ferme la connexion SQLite."""
@@ -99,9 +100,14 @@ class OrphanSweeper:
             )
             row = cursor.fetchone()
             if row:
+                if self.verbose:
+                    logger.info(f"✅ Cache hit: {file_path.name}")
                 return row[0]
         
         try:
+            if self.verbose:
+                logger.info(f"🔐 Calcul hash: {file_path.name}")
+            
             hasher = hashlib.md5()
             with file_path.open('rb') as f:
                 while chunk := f.read(1048576):  # 1MB buffer
@@ -151,6 +157,8 @@ class OrphanSweeper:
                     size=stat.st_size,
                     mtime=stat.st_mtime
                 ))
+                if self.verbose:
+                    logger.info(f"   📄 Trouvé: {file_path.name}")
             
             except OSError as e:
                 logger.error(f"⚠️  Erreur fichier {file_path}: {e}")
@@ -280,10 +288,18 @@ class OrphanSweeper:
                 elapsed = time() - start_time
                 percent = (completed / total) * 100
                 rate = completed / elapsed if elapsed > 0 else 0
-                eta = (total - completed) / rate if rate > 0 else 0
+                eta_seconds = (total - completed) / rate if rate > 0 else 0
+                
+                # Formater ETA
+                if eta_seconds < 60:
+                    eta_str = f"{eta_seconds:.0f}s"
+                elif eta_seconds < 3600:
+                    eta_str = f"{eta_seconds/60:.0f}min"
+                else:
+                    eta_str = f"{eta_seconds/3600:.1f}h"
                 
                 sys.stdout.write(f"\r   ⏳ Progression: {completed}/{total} ({percent:.1f}%) | "
-                                f"⚡ {rate:.1f} fichiers/s | ⏱️  ETA: {eta:.0f}")
+                                f"⚡ {rate:.1f} fichiers/s | ⏱️  ETA: {eta_str}")
                 sys.stdout.flush()
             
             executor.shutdown(wait=True)
@@ -293,7 +309,7 @@ class OrphanSweeper:
             executor.shutdown(wait=False, cancel_futures=True)
             raise
         
-        sys.stdout.write("s\n")
+        sys.stdout.write("\n")
         sys.stdout.flush()
         return result
     
@@ -349,6 +365,8 @@ def run() -> None:
                        help='Mode simulation : liste les orphelins sans supprimer')
     parser.add_argument('--clear-cache', action='store_true',
                        help='Vider le cache et quitter')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                       help='Mode verbose : affiche les actions en temps réel')
     
     if len(sys.argv) == 1:
         parser.print_help()
@@ -360,7 +378,7 @@ def run() -> None:
     if args.workers is None:
         args.workers = os.cpu_count() or 4
     
-    sweeper = OrphanSweeper(args.cache, args.workers)
+    sweeper = OrphanSweeper(args.cache, args.workers, args.verbose)
     
     if args.clear_cache:
         sweeper.clear_cache()
