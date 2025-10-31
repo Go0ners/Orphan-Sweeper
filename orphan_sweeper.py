@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from threading import Lock
 from time import time
-from typing import List, Optional, Set, Tuple
+from typing import List, Optional, Set
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -51,6 +51,12 @@ class OrphanSweeper:
         self.conn = self._init_db()
         self.max_workers = max_workers
         self.db_lock = Lock()
+        self.pending_commits: list[tuple] = []
+    
+    def __del__(self) -> None:
+        """Ferme la connexion SQLite."""
+        if hasattr(self, 'conn'):
+            self.conn.close()
     
     def _init_db(self) -> sqlite3.Connection:
         """Initialise la base SQLite."""
@@ -74,45 +80,54 @@ class OrphanSweeper:
         self.conn.commit()
         logger.info(f"\n✅ Cache vidé: {self.cache_file}")
     
-    def _get_file_hash(self, file_path: Path, show_log: bool = False) -> Optional[str]:
+    def _get_file_hash(self, file_path: Path) -> Optional[str]:
         """Calcule le hash MD5 d'un fichier avec cache."""
         try:
             stat = file_path.stat()
-            path_str = str(file_path)
-            
-            # Vérifier cache (lecture thread-safe)
-            with self.db_lock:
-                cursor = self.conn.execute(
-                    "SELECT hash FROM file_cache WHERE path=? AND mtime=? AND size=?",
-                    (path_str, stat.st_mtime, stat.st_size)
-                )
-                row = cursor.fetchone()
-                if row:
-                    return row[0]
-            
-            if show_log:
-                logger.info(f"Calcul hash: {file_path.name}")
-            
+        except OSError as e:
+            logger.error(f"⚠️  Erreur accès {file_path.name}: {e}")
+            return None
+        
+        path_str = str(file_path)
+        
+        # Vérifier cache (lecture thread-safe)
+        with self.db_lock:
+            cursor = self.conn.execute(
+                "SELECT hash FROM file_cache WHERE path=? AND mtime=? AND size=?",
+                (path_str, stat.st_mtime, stat.st_size)
+            )
+            row = cursor.fetchone()
+            if row:
+                return row[0]
+        
+        try:
             hasher = hashlib.md5()
             with file_path.open('rb') as f:
-                while chunk := f.read(8192):
+                while chunk := f.read(65536):
                     hasher.update(chunk)
             
             file_hash = hasher.hexdigest()
             
-            # Sauvegarder dans cache (écriture thread-safe)
+            # Ajouter au batch (écriture thread-safe)
             with self.db_lock:
-                self.conn.execute(
-                    "INSERT OR REPLACE INTO file_cache (path, mtime, size, hash) VALUES (?, ?, ?, ?)",
-                    (path_str, stat.st_mtime, stat.st_size, file_hash)
-                )
-                self.conn.commit()
+                self.pending_commits.append((path_str, stat.st_mtime, stat.st_size, file_hash))
             
             return file_hash
             
         except (OSError, IOError) as e:
             logger.error(f"⚠️  Erreur hash {file_path.name}: {e}")
             return None
+    
+    def _flush_cache(self) -> None:
+        """Commit tous les hash en attente."""
+        with self.db_lock:
+            if self.pending_commits:
+                self.conn.executemany(
+                    "INSERT OR REPLACE INTO file_cache (path, mtime, size, hash) VALUES (?, ?, ?, ?)",
+                    self.pending_commits
+                )
+                self.conn.commit()
+                self.pending_commits.clear()
     
     def _scan_directory(self, directory: Path) -> List[FileInfo]:
         """Scanne un répertoire et retourne les infos des fichiers vidéo."""
@@ -143,6 +158,12 @@ class OrphanSweeper:
     
     def find_orphans(self, source_dir: Path, dest_dirs: List[Path]) -> List[FileInfo]:
         """Trouve les fichiers orphelins dans le répertoire source."""
+        # Validation
+        for dest_dir in dest_dirs:
+            if source_dir.resolve() == dest_dir.resolve():
+                logger.error(f"❌ Source et destination identiques: {source_dir}")
+                sys.exit(1)
+        
         logger.info("\n" + "="*60)
         logger.info("🔍 ANALYSE DES FICHIERS")
         logger.info("="*60)
@@ -174,14 +195,20 @@ class OrphanSweeper:
         if not candidates:
             return []
         
-        # Filtre 2: hash en parallèle pour les candidats restants
+        # Filtre 2: hash candidats
         logger.info(f"\n🔐 Calcul hash pour {len(candidates)} candidats ({self.max_workers} threads)...")
         candidate_hashes = self._compute_hashes_parallel(candidates)
         
-        # Hash destinations en parallèle si nécessaire
-        logger.info(f"\n🔐 Calcul hash pour {len(dest_files)} destinations ({self.max_workers} threads)...")
-        dest_hash_map = self._compute_hashes_parallel(dest_files)
+        # Optimisation: ne hasher que les destinations avec taille correspondante
+        candidate_sizes = {f.size for f in candidates}
+        dest_to_hash = [f for f in dest_files if f.size in candidate_sizes]
+        
+        logger.info(f"\n🔐 Calcul hash pour {len(dest_to_hash)} destinations ({self.max_workers} threads)...")
+        dest_hash_map = self._compute_hashes_parallel(dest_to_hash)
         dest_hashes = set(dest_hash_map.keys())
+        
+        # Flush cache
+        self._flush_cache()
         
         # Orphelins = candidats dont le hash n'existe pas en destination
         orphans = [
@@ -351,23 +378,23 @@ def run() -> None:
     logger.info(f"💾 Taille totale: {total_size / (1024**2):.2f} MB ({total_size / (1024**3):.2f} GB)")
     logger.info(f"⏱️  Durée du scan: {scan_duration:.1f}s")
     
-    deleted_count = 0
+    deleted_files: list[FileInfo] = []
     for orphan in orphans:
         if sweeper.confirm_deletion(orphan, args.auto_delete, args.dry_run):
             if sweeper.delete_file(orphan.path, args.dry_run):
-                deleted_count += 1
+                deleted_files.append(orphan)
     
     print("\n" + "="*60)
     logger.info("📋 RÉSUMÉ")
     print("="*60)
     logger.info(f"📊 Fichiers orphelins détectés: {len(orphans)}")
     if args.dry_run:
-        logger.info(f"🔍 [DRY-RUN] Fichiers qui seraient supprimés: {deleted_count}")
+        logger.info(f"🔍 [DRY-RUN] Fichiers qui seraient supprimés: {len(deleted_files)}")
     else:
-        logger.info(f"🗑️  Fichiers supprimés: {deleted_count}")
-        logger.info(f"⏭️  Fichiers ignorés: {len(orphans) - deleted_count}")
+        logger.info(f"🗑️  Fichiers supprimés: {len(deleted_files)}")
+        logger.info(f"⏭️  Fichiers ignorés: {len(orphans) - len(deleted_files)}")
     
-    deleted_size = sum(o.size for o in orphans[:deleted_count])
+    deleted_size = sum(f.size for f in deleted_files)
     logger.info(f"💾 Espace libéré: {deleted_size / (1024**2):.2f} MB ({deleted_size / (1024**3):.2f} GB)")
     logger.info(f"⏱️  Durée totale: {time() - start_time:.1f}s")
     print("="*60 + "\n")
