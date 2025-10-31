@@ -443,12 +443,13 @@ class OrphanSweeper:
                         if not silent:
                             logger.info(f"   ✅ Folder deleted: {parent_dir.name}/")
                     else:
-                        if silent:
-                            logger.info(f"   ⚠️  Folder not empty: {parent_dir.name}/")
-                        else:
-                            logger.info(f"   ⚠️  Folder not empty: {parent_dir.name}/")
+                        logger.info(f"   ⚠️  Folder not empty: {parent_dir.name}/")
+                        if not silent:
                             logger.info(f"   📋 Remaining files ({len(remaining_files)}):")
-                            for f in remaining_files:
+                        for f in remaining_files:
+                            if silent:
+                                logger.info(f"      • {f.name}")
+                            else:
                                 logger.info(f"      • {f.name} ({f.suffix or 'no extension'})")
                         
                         if not dry_run:
@@ -464,23 +465,18 @@ class OrphanSweeper:
                                     try:
                                         if f.is_file():
                                             f.unlink()
-                                            if not silent:
-                                                logger.info(f"      ✅ Deleted: {f.name}")
+                                            logger.info(f"      ✅ Deleted: {f.name}")
                                         elif f.is_dir():
                                             shutil.rmtree(f)
-                                            if not silent:
-                                                logger.info(f"      ✅ Deleted folder: {f.name}/")
+                                            logger.info(f"      ✅ Deleted folder: {f.name}/")
                                     except OSError:
-                                        if not silent:
-                                            logger.info(f"      ❌ Failed to delete: {f.name}")
+                                        logger.info(f"      ❌ Failed to delete: {f.name}")
                                 
                                 try:
                                     parent_dir.rmdir()
-                                    if not silent:
-                                        logger.info(f"   ✅ Folder deleted: {parent_dir.name}/")
+                                    logger.info(f"   ✅ Folder deleted: {parent_dir.name}/")
                                 except OSError:
-                                    if not silent:
-                                        logger.info(f"   ❌ Failed to delete folder: {parent_dir.name}/")
+                                    logger.info(f"   ❌ Failed to delete folder: {parent_dir.name}/")
                 except OSError:
                     pass
             
