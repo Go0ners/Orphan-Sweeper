@@ -392,14 +392,33 @@ class OrphanSweeper:
         return result
     
     def delete_file(self, file_path: Path, dry_run: bool = False) -> bool:
-        """Supprime un fichier."""
+        """Supprime un fichier et son dossier parent si le nom correspond."""
+        parent_dir = file_path.parent
+        file_stem = file_path.stem  # Nom sans extension
+        should_delete_parent = parent_dir.name == file_stem
+        
         if dry_run:
             logger.info(f"   🔍 [DRY-RUN] {file_path.name}")
+            if should_delete_parent:
+                logger.info(f"   🔍 [DRY-RUN] Dossier: {parent_dir.name}/")
             return True
         
         try:
             file_path.unlink()
             logger.info(f"   ✅ Supprimé: {file_path.name}")
+            
+            # Supprimer le dossier parent si nom identique et vide
+            if should_delete_parent:
+                try:
+                    # Vérifier si le dossier est vide
+                    if not any(parent_dir.iterdir()):
+                        parent_dir.rmdir()
+                        logger.info(f"   ✅ Dossier supprimé: {parent_dir.name}/")
+                    else:
+                        logger.info(f"   ⚠️  Dossier non vide, conservé: {parent_dir.name}/")
+                except OSError as e:
+                    logger.error(f"   ❌ Erreur dossier: {parent_dir.name}/ - {e}")
+            
             return True
         except OSError as e:
             logger.error(f"   ❌ Erreur: {file_path.name} - {e}")
