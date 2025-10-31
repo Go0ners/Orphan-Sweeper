@@ -259,36 +259,39 @@ class OrphanSweeper:
         total = len(files)
         completed = 0
         start_time = time()
+        executor = ThreadPoolExecutor(max_workers=self.max_workers)
         
         try:
-            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                futures = {executor.submit(self._get_file_hash, f.path): f for f in files}
+            futures = {executor.submit(self._get_file_hash, f.path): f for f in files}
+            
+            for future in as_completed(futures):
+                file_info = futures[future]
+                completed += 1
                 
-                for future in as_completed(futures):
-                    file_info = futures[future]
-                    completed += 1
-                    
-                    try:
-                        file_hash = future.result()
-                        if file_hash:
-                            result[file_hash] = file_info
-                    except Exception as e:
-                        sys.stdout.write(f"\n⚠️  Erreur hash {file_info.path.name}: {e}\n")
-                        sys.stdout.flush()
-                    
-                    # Afficher progression
-                    elapsed = time() - start_time
-                    percent = (completed / total) * 100
-                    rate = completed / elapsed if elapsed > 0 else 0
-                    eta = (total - completed) / rate if rate > 0 else 0
-                    
-                    sys.stdout.write(f"\r   ⏳ Progression: {completed}/{total} ({percent:.1f}%) | "
-                                    f"⚡ {rate:.1f} fichiers/s | ⏱️  ETA: {eta:.0f}s")
+                try:
+                    file_hash = future.result()
+                    if file_hash:
+                        result[file_hash] = file_info
+                except Exception as e:
+                    sys.stdout.write(f"\n⚠️  Erreur hash {file_info.path.name}: {e}\n")
                     sys.stdout.flush()
+                
+                # Afficher progression
+                elapsed = time() - start_time
+                percent = (completed / total) * 100
+                rate = completed / elapsed if elapsed > 0 else 0
+                eta = (total - completed) / rate if rate > 0 else 0
+                
+                sys.stdout.write(f"\r   ⏳ Progression: {completed}/{total} ({percent:.1f}%) | "
+                                f"⚡ {rate:.1f} fichiers/s | ⏱️  ETA: {eta:.0f}s")
+                sys.stdout.flush()
         except KeyboardInterrupt:
             sys.stdout.write("\n")
             sys.stdout.flush()
+            executor.shutdown(wait=False, cancel_futures=True)
             raise
+        finally:
+            executor.shutdown(wait=True)
         
         sys.stdout.write("\n")
         sys.stdout.flush()
