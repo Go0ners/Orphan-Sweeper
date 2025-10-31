@@ -285,13 +285,13 @@ class OrphanSweeper:
                 sys.stdout.write(f"\r   ⏳ Progression: {completed}/{total} ({percent:.1f}%) | "
                                 f"⚡ {rate:.1f} fichiers/s | ⏱️  ETA: {eta:.0f}s")
                 sys.stdout.flush()
+            
+            executor.shutdown(wait=True)
         except KeyboardInterrupt:
             sys.stdout.write("\n")
             sys.stdout.flush()
             executor.shutdown(wait=False, cancel_futures=True)
             raise
-        finally:
-            executor.shutdown(wait=True)
         
         sys.stdout.write("\n")
         sys.stdout.flush()
@@ -321,7 +321,7 @@ def main() -> None:
         logger.info("⚠️  OPÉRATION ANNULÉE PAR L'UTILISATEUR")
         print("="*60)
         logger.info("👋 Aucune modification effectuée")
-        sys.exit(1)
+        os._exit(1)
 
 
 def run() -> None:
