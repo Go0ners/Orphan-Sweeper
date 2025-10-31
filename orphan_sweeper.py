@@ -308,7 +308,9 @@ class OrphanSweeper:
     
     def confirm_deletion(self, file_info: FileInfo, auto_delete: bool = False, dry_run: bool = False, silent: bool = False) -> tuple[bool, bool]:
         """Ask confirmation to delete a file. Returns (delete, yes_to_all)."""
-        if not silent:
+        if silent:
+            print(f"\n🗑️  {file_info.path.name}")
+        else:
             print(f"\n{'─'*60}")
             print("🗑️  ORPHAN FILE DETECTED")
             print(f"{'─'*60}")
@@ -393,11 +395,9 @@ class OrphanSweeper:
                     else:
                         sys.stdout.write(f"\r{progress_line}")
                 else:
-                    if not self.silent:
-                        sys.stdout.write(f"\r{progress_line}")
+                    sys.stdout.write(f"\r{progress_line}")
                 
-                if not self.silent:
-                    sys.stdout.flush()
+                sys.stdout.flush()
             
             executor.shutdown(wait=True)
         except KeyboardInterrupt:
@@ -411,9 +411,11 @@ class OrphanSweeper:
         
         if self.verbose and term_height > 0:
             sys.stdout.write(f"\033[{term_height};0H\033[K\n")
-        else:
+        elif not self.silent:
             sys.stdout.write("\n")
-        sys.stdout.flush()
+        
+        if not self.silent:
+            sys.stdout.flush()
         return result
     
     def delete_file(self, file_path: Path, dry_run: bool = False, force_delete_folders: bool = False, silent: bool = False) -> bool:
@@ -441,7 +443,9 @@ class OrphanSweeper:
                         if not silent:
                             logger.info(f"   ✅ Folder deleted: {parent_dir.name}/")
                     else:
-                        if not silent:
+                        if silent:
+                            logger.info(f"   ⚠️  Folder not empty: {parent_dir.name}/")
+                        else:
                             logger.info(f"   ⚠️  Folder not empty: {parent_dir.name}/")
                             logger.info(f"   📋 Remaining files ({len(remaining_files)}):")
                             for f in remaining_files:
