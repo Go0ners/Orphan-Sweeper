@@ -124,7 +124,7 @@ Un fichier est **orphelin** si :
 📊 Total destinations: 70 fichiers
 ⚡ Filtre rapide: 15 candidats orphelins
 
-🔐 Calcul hash pour 15 candidats (4 threads)...
+🔐 Calcul hash pour 15 candidats (4/8 threads)...
    ⏳ Progression: 15/15 (100.0%) | ⚡ 85.3 fichiers/s | ⏱️  ETA: 0s
 
 ⚠️  15 FICHIER(S) ORPHELIN(S) DÉTECTÉ(S)

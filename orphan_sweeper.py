@@ -15,6 +15,7 @@ from pathlib import Path
 from threading import Lock
 from time import time
 from typing import List, Optional, Set
+import os
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -196,14 +197,15 @@ class OrphanSweeper:
             return []
         
         # Filtre 2: hash candidats
-        logger.info(f"\n🔐 Calcul hash pour {len(candidates)} candidats ({self.max_workers} threads)...")
+        max_cpu = os.cpu_count() or 1
+        logger.info(f"\n🔐 Calcul hash pour {len(candidates)} candidats ({self.max_workers}/{max_cpu} threads)...")
         candidate_hashes = self._compute_hashes_parallel(candidates)
         
         # Optimisation: ne hasher que les destinations avec taille correspondante
         candidate_sizes = {f.size for f in candidates}
         dest_to_hash = [f for f in dest_files if f.size in candidate_sizes]
         
-        logger.info(f"\n🔐 Calcul hash pour {len(dest_to_hash)} destinations ({self.max_workers} threads)...")
+        logger.info(f"\n🔐 Calcul hash pour {len(dest_to_hash)} destinations ({self.max_workers}/{max_cpu} threads)...")
         dest_hash_map = self._compute_hashes_parallel(dest_to_hash)
         dest_hashes = set(dest_hash_map.keys())
         
@@ -258,30 +260,35 @@ class OrphanSweeper:
         completed = 0
         start_time = time()
         
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = {executor.submit(self._get_file_hash, f.path): f for f in files}
-            
-            for future in as_completed(futures):
-                file_info = futures[future]
-                completed += 1
+        try:
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                futures = {executor.submit(self._get_file_hash, f.path): f for f in files}
                 
-                try:
-                    file_hash = future.result()
-                    if file_hash:
-                        result[file_hash] = file_info
-                except Exception as e:
-                    sys.stdout.write(f"\n⚠️  Erreur hash {file_info.path.name}: {e}\n")
+                for future in as_completed(futures):
+                    file_info = futures[future]
+                    completed += 1
+                    
+                    try:
+                        file_hash = future.result()
+                        if file_hash:
+                            result[file_hash] = file_info
+                    except Exception as e:
+                        sys.stdout.write(f"\n⚠️  Erreur hash {file_info.path.name}: {e}\n")
+                        sys.stdout.flush()
+                    
+                    # Afficher progression
+                    elapsed = time() - start_time
+                    percent = (completed / total) * 100
+                    rate = completed / elapsed if elapsed > 0 else 0
+                    eta = (total - completed) / rate if rate > 0 else 0
+                    
+                    sys.stdout.write(f"\r   ⏳ Progression: {completed}/{total} ({percent:.1f}%) | "
+                                    f"⚡ {rate:.1f} fichiers/s | ⏱️  ETA: {eta:.0f}s")
                     sys.stdout.flush()
-                
-                # Afficher progression
-                elapsed = time() - start_time
-                percent = (completed / total) * 100
-                rate = completed / elapsed if elapsed > 0 else 0
-                eta = (total - completed) / rate if rate > 0 else 0
-                
-                sys.stdout.write(f"\r   ⏳ Progression: {completed}/{total} ({percent:.1f}%) | "
-                                f"⚡ {rate:.1f} fichiers/s | ⏱️  ETA: {eta:.0f}s")
-                sys.stdout.flush()
+        except KeyboardInterrupt:
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+            raise
         
         sys.stdout.write("\n")
         sys.stdout.flush()
@@ -311,7 +318,7 @@ def main() -> None:
         logger.info("⚠️  OPÉRATION ANNULÉE PAR L'UTILISATEUR")
         print("="*60)
         logger.info("👋 Aucune modification effectuée")
-        sys.exit(0)
+        sys.exit(1)
 
 
 def run() -> None:
