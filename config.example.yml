@@ -1,0 +1,35 @@
+# Orphan Sweeper Configuration Example
+# Save as config.yml and use with: python3 orphan_sweeper.py --config config.yml
+
+# Required: Source directory to scan for orphans
+source: /path/to/source
+
+# Required: List of destination directories
+destinations:
+  - /path/to/destination1
+  - /path/to/destination2
+  - /path/to/destination3
+
+# Optional: Number of worker threads (default: auto-detect CPU count)
+workers: 16
+
+# Optional: SQLite cache file location
+cache: ~/.orphan_sweeper_cache.db
+
+# Optional: Automatic deletion without confirmation (DANGEROUS)
+auto_delete: false
+
+# Optional: Automatically delete non-empty folders
+force_delete_folders: false
+
+# Optional: Dry-run mode (simulation without deletion)
+dry_run: false
+
+# Optional: Verbose output
+verbose: false
+
+# Optional: Silent mode (minimal output)
+silent: false
+
+# Optional: Export report to JSON file
+# export_report: /path/to/report.json

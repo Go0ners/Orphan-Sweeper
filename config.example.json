@@ -1,0 +1,13 @@
+{
+  "source": "/path/to/source",
+  "destinations": [
+    "/path/to/destination1",
+    "/path/to/destination2"
+  ],
+  "workers": 16,
+  "cache": "~/.orphan_sweeper_cache.db",
+  "auto_delete": false,
+  "dry_run": false,
+  "verbose": false,
+  "silent": false
+}

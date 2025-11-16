@@ -3,6 +3,7 @@
 Orphan File Sweeper - Deletes orphan video files without match.
 """
 import hashlib
+import json
 import logging
 import sqlite3
 import sys
@@ -12,15 +13,80 @@ from datetime import datetime
 from pathlib import Path
 from threading import Lock
 from time import time
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Dict, Tuple, TypedDict
 from queue import Queue
 import os
 import shutil
 import select
 
 # Logging configuration
-logging.basicConfig(level=logging.INFO, format='%(message)s')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger(__name__)
+
+
+class CacheEntry(TypedDict):
+    """Type definition for cache entries."""
+    path: str
+    mtime: float
+    size: int
+    hash: str
+
+
+class Config:
+    """Configuration constants for Orphan Sweeper."""
+
+    # File size limits
+    MIN_FILE_SIZE_MB: int = 350
+    MIN_FILE_SIZE_BYTES: int = MIN_FILE_SIZE_MB * 1024 * 1024
+
+    # Hash calculation
+    HASH_CHUNK_SIZE_MB: int = 10
+    HASH_CHUNK_SIZE_BYTES: int = HASH_CHUNK_SIZE_MB * 1024 * 1024
+
+    # Cache settings
+    CACHE_BATCH_SIZE: int = 100
+    DEFAULT_CACHE_FILE: str = "media_cache.db"
+
+    # Video file extensions
+    VIDEO_EXTENSIONS: Set[str] = {
+        '.mkv', '.mp4', '.avi', '.mov', '.wmv',
+        '.flv', '.webm', '.m4v'
+    }
+
+    # Ignored patterns
+    IGNORED_KEYWORDS: Set[str] = {'sample'}
+
+    # Performance
+    FILE_READ_BUFFER_SIZE: int = 1024 * 1024  # 1MB buffer
+
+    # UI
+    PAUSE_TIMEOUT_SECONDS: int = 10
+
+    @classmethod
+    def from_file(cls, config_path: Path) -> Dict:
+        """Load configuration from JSON/YAML file."""
+        if not config_path.exists():
+            return {}
+
+        try:
+            with open(config_path, 'r') as f:
+                if config_path.suffix in {'.yml', '.yaml'}:
+                    try:
+                        import yaml
+                        return yaml.safe_load(f)
+                    except ImportError:
+                        logger.warning("PyYAML not installed, skipping YAML config")
+                        return {}
+                elif config_path.suffix == '.json':
+                    return json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to load config from {config_path}: {e}")
+
+        return {}
 
 
 class FileInfo:
@@ -38,21 +104,35 @@ class FileInfo:
 
 class OrphanSweeper:
     """Orphan video file detector and remover."""
-    
-    VIDEO_EXTENSIONS: Set[str] = {
-        '.mkv', '.mp4', '.avi', '.mov', '.wmv', 
-        '.flv', '.webm', '.m4v'
-    }
-    
-    def __init__(self, cache_file: Path = Path("media_cache.db"), max_workers: int = 4, verbose: bool = False, silent: bool = False) -> None:
+
+    def __init__(
+        self,
+        cache_file: Path = Path(Config.DEFAULT_CACHE_FILE),
+        max_workers: int = 4,
+        verbose: bool = False,
+        silent: bool = False,
+        export_report: Optional[Path] = None
+    ) -> None:
         self.cache_file = cache_file
         self.conn = self._init_db()
         self.max_workers = max_workers
         self.db_lock = Lock()
-        self.pending_commits: list[tuple] = []
+        self.pending_commits: List[Tuple[str, float, int, str]] = []
         self.verbose = verbose
         self.silent = silent
         self.log_queue: Queue = Queue()
+        self.export_report = export_report
+        self.report_data: Dict = {
+            'scan_date': datetime.now().isoformat(),
+            'source': None,
+            'destinations': [],
+            'orphans_detected': 0,
+            'orphans_deleted': 0,
+            'total_size_bytes': 0,
+            'total_size_freed_bytes': 0,
+            'scan_duration_seconds': 0,
+            'files': []
+        }
     
     def __del__(self) -> None:
         """Close SQLite connection."""
@@ -132,23 +212,23 @@ class OrphanSweeper:
         try:
             if self.verbose:
                 self.log_queue.put(f"🔐 Calculating hash: {file_path.name}")
-            
+
             hasher = hashlib.md5()
-            chunk_size = 10 * 1024 * 1024
-            
+            chunk_size = Config.HASH_CHUNK_SIZE_BYTES
+
             with file_path.open('rb') as f:
                 hasher.update(f.read(chunk_size))
                 f.seek(file_size // 2 - chunk_size // 2)
                 hasher.update(f.read(chunk_size))
                 f.seek(max(0, file_size - chunk_size))
                 hasher.update(f.read(chunk_size))
-            
+
             file_hash = hasher.hexdigest()
-            
+
             # Add to batch (thread-safe write)
             with self.db_lock:
                 self.pending_commits.append((path_str, stat.st_mtime, stat.st_size, file_hash))
-                if len(self.pending_commits) >= 100:
+                if len(self.pending_commits) >= Config.CACHE_BATCH_SIZE:
                     self.conn.executemany(
                         "INSERT OR REPLACE INTO file_cache (path, mtime, size, hash) VALUES (?, ?, ?, ?)",
                         self.pending_commits
@@ -184,17 +264,17 @@ class OrphanSweeper:
         files_info: List[FileInfo] = []
         
         for file_path in directory.rglob("*"):
-            if not (file_path.is_file() and 
-                   file_path.suffix.lower() in self.VIDEO_EXTENSIONS):
+            if not (file_path.is_file() and
+                   file_path.suffix.lower() in Config.VIDEO_EXTENSIONS):
                 continue
-            
+
             try:
                 stat = file_path.stat()
-                # Ignore files < 350 MB
-                if stat.st_size < 350 * 1024 * 1024:
+                # Ignore files below minimum size
+                if stat.st_size < Config.MIN_FILE_SIZE_BYTES:
                     continue
-                # Ignore files with 'sample' in name
-                if 'sample' in file_path.name.lower():
+                # Ignore files with ignored keywords in name
+                if any(keyword in file_path.name.lower() for keyword in Config.IGNORED_KEYWORDS):
                     continue
                 
                 files_info.append(FileInfo(
@@ -296,13 +376,13 @@ class OrphanSweeper:
         ]
         
         if orphans and not self.silent:
-            print(f"\n⏸️  {len(orphans)} orphan(s) detected. Press Enter to continue (auto in 10s)...")
+            print(f"\n⏸️  {len(orphans)} orphan(s) detected. Press Enter to continue (auto in {Config.PAUSE_TIMEOUT_SECONDS}s)...")
             if sys.stdin.isatty():
-                ready, _, _ = select.select([sys.stdin], [], [], 10)
+                ready, _, _ = select.select([sys.stdin], [], [], Config.PAUSE_TIMEOUT_SECONDS)
                 if ready:
                     sys.stdin.readline()
             else:
-                time.sleep(10)
+                time.sleep(Config.PAUSE_TIMEOUT_SECONDS)
         
         return orphans
     
@@ -488,6 +568,47 @@ class OrphanSweeper:
         except OSError:
             return False
 
+    def add_to_report(self, file_info: FileInfo, deleted: bool, file_hash: Optional[str] = None) -> None:
+        """Add file information to the report."""
+        if not self.export_report:
+            return
+
+        self.report_data['files'].append({
+            'name': file_info.path.name,
+            'path': str(file_info.path),
+            'parent_folder': str(file_info.path.parent),
+            'size_bytes': file_info.size,
+            'size_mb': round(file_info.size / (1024**2), 2),
+            'size_gb': round(file_info.size / (1024**3), 2),
+            'mtime': file_info.mtime_str,
+            'hash': file_hash or 'unknown',
+            'deleted': deleted
+        })
+
+    def export_report_json(self) -> None:
+        """Export scan report to JSON file."""
+        if not self.export_report:
+            return
+
+        try:
+            self.report_data['orphans_detected'] = len(self.report_data['files'])
+            self.report_data['orphans_deleted'] = sum(
+                1 for f in self.report_data['files'] if f['deleted']
+            )
+            self.report_data['total_size_bytes'] = sum(
+                f['size_bytes'] for f in self.report_data['files']
+            )
+            self.report_data['total_size_freed_bytes'] = sum(
+                f['size_bytes'] for f in self.report_data['files'] if f['deleted']
+            )
+
+            with open(self.export_report, 'w') as f:
+                json.dump(self.report_data, f, indent=2)
+
+            logger.info(f"\n📊 Report exported to: {self.export_report}")
+        except Exception as e:
+            logger.error(f"Failed to export report: {e}")
+
 
 def main() -> None:
     """Main entry point."""
@@ -515,8 +636,10 @@ def run() -> None:
                        help='Source directory to analyze')
     parser.add_argument('-D', '--dest', type=Path, action='append', required=False,
                        help='Destination directory (repeatable)')
-    parser.add_argument('--cache', type=Path, default=Path('media_cache.db'),
-                       help='SQLite cache file (default: media_cache.db)')
+    parser.add_argument('--config', type=Path,
+                       help='Configuration file (JSON/YAML) to load settings from')
+    parser.add_argument('--cache', type=Path, default=Path(Config.DEFAULT_CACHE_FILE),
+                       help=f'SQLite cache file (default: {Config.DEFAULT_CACHE_FILE})')
     parser.add_argument('--workers', type=int,
                        help='Number of threads for parallel hash (default: auto)')
     parser.add_argument('--auto-delete', action='store_true',
@@ -525,6 +648,8 @@ def run() -> None:
                        help='Automatically delete non-empty folders without asking')
     parser.add_argument('--dry-run', action='store_true',
                        help='Simulation mode: list orphans without deleting')
+    parser.add_argument('--export-report', type=Path,
+                       help='Export scan report to JSON file')
     parser.add_argument('--clear-cache', action='store_true',
                        help='Clear cache and quit')
     parser.add_argument('--display-cache', action='store_true',
@@ -539,10 +664,30 @@ def run() -> None:
         sys.exit(1)
     
     args = parser.parse_args()
-    
+
+    # Load configuration file if provided
+    config_data = {}
+    if args.config:
+        config_data = Config.from_file(args.config)
+        logger.info(f"📄 Loaded configuration from: {args.config}")
+
+        # Apply config file settings (CLI args take precedence)
+        if not args.source and 'source' in config_data:
+            args.source = Path(config_data['source'])
+        if not args.dest and 'destinations' in config_data:
+            args.dest = [Path(d) for d in config_data['destinations']]
+        if not args.workers and 'workers' in config_data:
+            args.workers = config_data['workers']
+
     args.workers = args.workers or os.cpu_count() or 4
-    
-    sweeper = OrphanSweeper(args.cache, args.workers, args.verbose, args.silent)
+
+    sweeper = OrphanSweeper(
+        args.cache,
+        args.workers,
+        args.verbose,
+        args.silent,
+        args.export_report
+    )
     
     if args.clear_cache:
         sweeper.clear_cache()
@@ -568,10 +713,15 @@ def run() -> None:
         logger.info(f"🎯 Destinations: {len(args.dest)} directory(ies)")
         for dest in args.dest:
             logger.info(f"   • {dest}")
-    
+
+    # Store in report
+    sweeper.report_data['source'] = str(args.source)
+    sweeper.report_data['destinations'] = [str(d) for d in args.dest]
+
     start_time = time()
     orphans = sweeper.find_orphans(args.source, args.dest)
     scan_duration = time() - start_time
+    sweeper.report_data['scan_duration_seconds'] = round(scan_duration, 2)
     
     if not orphans:
         if not args.silent:
@@ -590,17 +740,20 @@ def run() -> None:
         logger.info(f"💾 Total size: {total_size / (1024**2):.2f} MB ({total_size / (1024**3):.2f} GB)")
         logger.info(f"⏱️  Scan duration: {scan_duration:.1f}s")
     
-    deleted_files: list[FileInfo] = []
+    deleted_files: List[FileInfo] = []
     yes_to_all = False
     for orphan in orphans:
         if yes_to_all:
             should_delete = True
         else:
             should_delete, yes_to_all = sweeper.confirm_deletion(orphan, args.auto_delete, args.dry_run, args.silent)
-        
+
         if should_delete:
             if sweeper.delete_file(orphan.path, args.dry_run, args.force_delete_folders, args.silent):
                 deleted_files.append(orphan)
+                sweeper.add_to_report(orphan, deleted=True)
+        else:
+            sweeper.add_to_report(orphan, deleted=False)
     
     if not args.silent:
         print("\n" + "="*60)
@@ -617,6 +770,9 @@ def run() -> None:
         logger.info(f"💾 Space freed: {deleted_size / (1024**2):.2f} MB ({deleted_size / (1024**3):.2f} GB)")
         logger.info(f"⏱️  Total duration: {time() - start_time:.1f}s")
         print("="*60 + "\n")
+
+    # Export report if requested
+    sweeper.export_report_json()
 
 
 if __name__ == "__main__":

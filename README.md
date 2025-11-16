@@ -2,7 +2,7 @@
 
 Detects and deletes orphan video files from the source directory that have no match in destination directories.
 
-**Latest update:** Code cleanup - removed ~60 lines of redundant code while preserving all functionality.
+**Latest update:** Major improvements - configuration files support, JSON reports export, improved logging, and comprehensive test suite.
 
 ## ⚠️ Warning
 
@@ -19,6 +19,37 @@ Detects and deletes orphan video files from the source directory that have no ma
 # No dependencies - Python 3.8+ required
 python3 --version
 python3 orphan_sweeper.py --help
+```
+
+## 🆕 New Features
+
+### Configuration Files
+Load settings from JSON or YAML configuration files:
+```bash
+# Create a config file (see config.example.json or config.example.yml)
+python3 orphan_sweeper.py --config my_config.yml
+```
+
+### JSON Report Export
+Export detailed scan reports for auditing and automation:
+```bash
+python3 orphan_sweeper.py -S ~/Downloads -D ~/Movies --export-report report.json
+```
+
+The report includes:
+- Scan date and duration
+- Source and destination paths
+- List of all orphan files with metadata
+- Total size and space freed
+- Deletion status for each file
+
+### Improved Logging
+Structured logging with timestamps for better debugging and audit trails.
+
+### Test Suite
+Comprehensive unit tests to ensure reliability:
+```bash
+python3 -m unittest discover tests
 ```
 
 ## 📖 Usage
@@ -133,11 +164,13 @@ Generic: works with any folder names!
 |--------|-------------|---------|
 | `-S, --source` | Source directory | Required |
 | `-D, --dest` | Destination (repeatable) | Required |
+| `--config` | Config file (JSON/YAML) | None |
 | `--cache` | SQLite cache file | `media_cache.db` |
 | `--workers` | Threads for hashing | `auto` (CPU) |
 | `--dry-run` | Simulation without deletion | `False` |
 | `--auto-delete` | No confirmation ⚠️ | `False` |
 | `--force-delete-folders` | Auto-delete non-empty folders | `False` |
+| `--export-report` | Export report to JSON file | None |
 | `--clear-cache` | Clear cache | `False` |
 | `--display-cache` | Display cache statistics | `False` |
 | `-v, --verbose` | Show actions in real-time | `False` |
